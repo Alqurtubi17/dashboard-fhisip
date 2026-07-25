@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id])
+  status    Status   @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  slug        String           @unique
+  description String?
+  isSystem    Boolean          @default(false)
+  users       User[]
+  permissions RolePermission[]
+  menus       RoleMenu[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("roles")
+}
+
+model Permission {
+  id        String           @id @default(cuid())
+  module    String
+  action    String
+  label     String?
+  roles     RolePermission[]
+  createdAt DateTime         @default(now())
+
+  @@unique([module, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Menu {
+  id            String     @id @default(cuid())
+  name          String
+  icon          String?
+  url           String?
+  parentId      String?
+  parent        Menu?      @relation("MenuToMenu", fields: [parentId], references: [id], onDelete: Cascade)
+  children      Menu[]     @relation("MenuToMenu")
+  sort          Int        @default(0)
+  permissionKey String?
+  roles         RoleMenu[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@map("menus")
+}
+
+model RoleMenu {
+  roleId String
+  menuId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  menu   Menu   @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, menuId])
+  @@map("role_menus")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  ip        String?
+  device    String?
+  browser   String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
