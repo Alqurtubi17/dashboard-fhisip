@@ -8,6 +8,8 @@ import {
   REFRESH_COOKIE,
   SessionPayload,
 } from '@/lib/auth'
+import { loginRateLimiter, apiRateLimiter } from '@/lib/rate-limit'
+import { getClientIp, isValidOrigin } from '@/lib/security'
 
 // Routes that don't require authentication
 const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/refresh']
@@ -25,11 +27,59 @@ const SUPERADMIN_ONLY = [
   '/api/audit',
 ]
 
+// Helper to attach security headers to responses
+function addSecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set('X-DNS-Prefetch-Control', 'off')
+  response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()')
+  return response
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
+  const method = req.method
+  const clientIp = getClientIp(req.headers)
 
+  // 1. Rate Limiting for Login
+  if (pathname === '/api/auth/login' && method === 'POST') {
+    const rateCheck = loginRateLimiter.check(5, clientIp)
+    if (!rateCheck.success) {
+      const res = NextResponse.json(
+        { error: 'Terlalu banyak percobaan login. Silakan coba beberapa menit lagi.' },
+        { status: 429, headers: { 'Retry-After': String(rateCheck.reset) } }
+      )
+      return addSecurityHeaders(res)
+    }
+  }
+
+  // 2. Rate Limiting for General API routes
+  if (pathname.startsWith('/api')) {
+    const apiCheck = apiRateLimiter.check(100, clientIp)
+    if (!apiCheck.success) {
+      const res = NextResponse.json(
+        { error: 'Batas kuota permintaan API terlampaui. Silakan coba sebentar lagi.' },
+        { status: 429, headers: { 'Retry-After': String(apiCheck.reset) } }
+      )
+      return addSecurityHeaders(res)
+    }
+  }
+
+  // 3. CSRF Verification for state-changing API requests (POST, PUT, PATCH, DELETE)
+  if (pathname.startsWith('/api') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const origin = req.headers.get('origin') || req.headers.get('referer')
+    const host = req.headers.get('host')
+    if (origin && host && !isValidOrigin(origin, host)) {
+      const res = NextResponse.json({ error: 'Permintaan ditolak: CSRF validation failed' }, { status: 403 })
+      return addSecurityHeaders(res)
+    }
+  }
+
+  // Public path check
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || pathname.startsWith('/_next')) {
-    return NextResponse.next()
+    return addSecurityHeaders(NextResponse.next())
   }
 
   let session: SessionPayload | null = null
@@ -61,11 +111,12 @@ export async function middleware(req: NextRequest) {
 
   if (!session) {
     if (pathname.startsWith('/api')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      const res = NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return addSecurityHeaders(res)
     }
     const loginUrl = new URL('/login', req.url)
     loginUrl.searchParams.set('redirect', pathname)
-    return NextResponse.redirect(loginUrl)
+    return addSecurityHeaders(NextResponse.redirect(loginUrl))
   }
 
   // Attach session info to request headers so pages/API routes can read it
@@ -77,9 +128,10 @@ export async function middleware(req: NextRequest) {
   // Check Superadmin-only paths
   if (SUPERADMIN_ONLY.some((p) => pathname.startsWith(p)) && session.role !== 'superadmin') {
     if (pathname.startsWith('/api')) {
-      return NextResponse.json({ error: 'Forbidden: superadmin only' }, { status: 403 })
+      const res = NextResponse.json({ error: 'Forbidden: superadmin only' }, { status: 403 })
+      return addSecurityHeaders(res)
     }
-    return NextResponse.redirect(new URL('/dashboard?error=forbidden', req.url))
+    return addSecurityHeaders(NextResponse.redirect(new URL('/dashboard?error=forbidden', req.url)))
   }
 
   const res = NextResponse.next({ request: { headers: requestHeaders } })
@@ -102,7 +154,7 @@ export async function middleware(req: NextRequest) {
     })
   }
 
-  return res
+  return addSecurityHeaders(res)
 }
 
 export const config = {

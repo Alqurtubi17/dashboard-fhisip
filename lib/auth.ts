@@ -1,7 +1,18 @@
 import { SignJWT, jwtVerify } from 'jose'
 
-const ACCESS_SECRET = new TextEncoder().encode(process.env.JWT_ACCESS_SECRET || 'dev-access-secret')
-const REFRESH_SECRET = new TextEncoder().encode(process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret')
+const rawAccessSecret = process.env.JWT_ACCESS_SECRET || 'dev-access-secret'
+const rawRefreshSecret = process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret'
+
+if (process.env.NODE_ENV === 'production') {
+  if (rawAccessSecret === 'dev-access-secret' || rawRefreshSecret === 'dev-refresh-secret') {
+    console.warn(
+      'CRITICAL SECURITY WARNING: JWT_ACCESS_SECRET or JWT_REFRESH_SECRET is not configured for production environment!'
+    )
+  }
+}
+
+const ACCESS_SECRET = new TextEncoder().encode(rawAccessSecret)
+const REFRESH_SECRET = new TextEncoder().encode(rawRefreshSecret)
 
 export type SessionPayload = {
   sub: string // user id
