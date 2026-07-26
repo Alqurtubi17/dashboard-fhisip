@@ -24,7 +24,7 @@ export default function DashboardShell({
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen ut-bg-pattern">
       <Sidebar menus={menus} mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0">
         <Header user={user} onMenuToggle={() => setMobileOpen(true)} />
