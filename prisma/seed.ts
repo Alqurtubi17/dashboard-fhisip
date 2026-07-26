@@ -15,7 +15,6 @@ const MODULES = [
   'permissions',
   'menus',
   'sinkronisasi',
-  'audit',
 ]
 
 const ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'export']
@@ -74,7 +73,7 @@ const MENUS: {
   },
   { name: 'Laporan', icon: 'FileBarChart', url: '/laporan', permissionKey: 'laporan.view', sort: 5 },
   {
-    name: 'Pengaturan',
+    name: 'Pengaturan Akses',
     icon: 'Settings',
     permissionKey: 'roles.view',
     sort: 6,
@@ -82,7 +81,6 @@ const MENUS: {
       { name: 'Manajemen Role', icon: 'Shield', url: '/roles', permissionKey: 'roles.view', sort: 1 },
       { name: 'Manajemen Menu', icon: 'Menu', url: '/menus', permissionKey: 'menus.view', sort: 2 },
       { name: 'Manajemen User', icon: 'UserCog', url: '/users', permissionKey: 'users.view', sort: 3 },
-      { name: 'Audit Log', icon: 'History', url: '/audit', permissionKey: 'audit.view', sort: 4 },
     ],
   },
 ]
@@ -162,7 +160,7 @@ async function main() {
   // 4. Default users
   console.log('Seeding users...')
   const hash = await bcrypt.hash('Admin123!', 10)
-  
+
   const sampleUsers = [
     { name: 'Super Admin', email: 'admin@kampus.ac.id', roleId: superadminId },
     { name: 'Dr. Hendra (Kaprodi)', email: 'kaprodi@kampus.ac.id', roleId: roleRecords['kaprodi'] },

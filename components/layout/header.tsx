@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { LogOut, Menu, Calendar, Building2, Bell } from 'lucide-react'
+import { LogOut, Menu, Calendar, Building2 } from 'lucide-react'
 
 export default function Header({
   user,
@@ -49,12 +49,6 @@ export default function Header({
       </div>
 
       <div className="flex items-center gap-3 sm:gap-4">
-        {/* Notification Bell Badge */}
-        <button className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-ut-navy relative transition">
-          <Bell className="w-5 h-5" />
-          <span className="w-2 h-2 rounded-full bg-amber-500 absolute top-2 right-2 ring-2 ring-white"></span>
-        </button>
-
         {/* User Info Pill */}
         <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200">
           <div className="w-9 h-9 rounded-xl bg-ut-navy text-amber-400 font-bold text-xs flex items-center justify-center border border-ut-navy/20 shadow-sm">

@@ -3,14 +3,15 @@ import {
   Users,
   GraduationCap,
   BookOpen,
-  FileText,
-  ShieldCheck,
+  FileBarChart,
   Globe2,
-  Server,
   ArrowRight,
   Sparkles,
   Award,
   CheckCircle2,
+  Calendar,
+  Star,
+  UserCheck,
 } from 'lucide-react'
 import { FhisipLogo } from '@/components/ui/fhisip-logo'
 
@@ -37,14 +38,14 @@ export default function DashboardPage() {
         <div className="relative z-10 space-y-4 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-amber-400 text-slate-950 shadow-sm">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Sistem Informasi Management Platform FHISIP UT</span>
+            <span>Sistem Informasi Academic Platform FHISIP UT</span>
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
             Fakultas Hukum, Ilmu Sosial dan Ilmu Politik
           </h1>
           <p className="text-sm text-slate-200 leading-relaxed">
-            Pusat kendali administrasi akademik, manajemen pengguna, dan integrasi data Pendidikan Tinggi Terbuka dan Jarak Jauh (PTTJJ) Universitas Terbuka.
+            Pusat kendali administrasi akademik dan pengelolaan layanan mahasiswa Pendidikan Tinggi Terbuka dan Jarak Jauh (PTTJJ) Universitas Terbuka.
           </p>
 
           <div className="pt-2 flex flex-wrap items-center gap-3 text-xs">
@@ -60,7 +61,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Main Administrative Stats */}
+      {/* Main Academic Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
@@ -69,7 +70,6 @@ export default function DashboardPage() {
             desc: 'Registrasi Semester Ini',
             icon: GraduationCap,
             color: 'bg-ut-navy text-amber-400',
-            borderColor: 'border-ut-navy/20',
           },
           {
             title: 'Dosen & Pengajar',
@@ -77,7 +77,6 @@ export default function DashboardPage() {
             desc: 'Tutor Tuton & Tuweb',
             icon: Users,
             color: 'bg-ut-blue text-white',
-            borderColor: 'border-ut-blue/20',
           },
           {
             title: 'Program Studi',
@@ -85,15 +84,13 @@ export default function DashboardPage() {
             desc: 'Jenjang S1 & S2 FHISIP',
             icon: BookOpen,
             color: 'bg-emerald-700 text-white',
-            borderColor: 'border-emerald-700/20',
           },
           {
-            title: 'Audit Keamanan Sistem',
-            value: 'Aktif',
-            desc: 'Rate Limit & Header Hardened',
-            icon: ShieldCheck,
+            title: 'Layanan Tutorial Aktif',
+            value: '1.420',
+            desc: 'Kelas Tuton & Tuweb',
+            icon: UserCheck,
             color: 'bg-amber-500 text-slate-950',
-            borderColor: 'border-amber-500/20',
           },
         ].map((item) => (
           <div key={item.title} className="card p-5 card-hover relative overflow-hidden flex flex-col justify-between">
@@ -114,7 +111,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Two Column Layout: Program Studi & Quick Administrative Access */}
+      {/* Two Column Layout: Program Studi & Academic Quick Links */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Program Studi FHISIP */}
         <div className="lg:col-span-2 space-y-4">
@@ -152,53 +149,59 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Right 1 Col: Quick Administrative Action Panel */}
+        {/* Right 1 Col: Academic Quick Actions */}
         <div className="space-y-4">
           <div className="card p-6 border-t-4 border-t-ut-navy">
             <h2 className="text-base font-bold text-slate-800 flex items-center gap-2 mb-3">
-              <Server className="w-5 h-5 text-ut-navy" />
-              Aksi Administrasi
+              <GraduationCap className="w-5 h-5 text-ut-navy" />
+              Layanan Akademik
             </h2>
-            <p className="text-xs text-slate-500 mb-4">Pintasan cepat modul pengurusan dashboard FHISIP</p>
+            <p className="text-xs text-slate-500 mb-4">Pintasan cepat modul operasional akademik FHISIP</p>
 
             <div className="space-y-2">
               <Link
-                href="/users"
+                href="/mahasiswa"
                 className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-ut-blue hover:bg-ut-navy/5 text-slate-700 hover:text-ut-navy font-semibold text-xs transition"
               >
                 <div className="flex items-center gap-2.5">
-                  <Users className="w-4 h-4 text-ut-blue" />
-                  <span>Kelola User & Role</span>
+                  <GraduationCap className="w-4 h-4 text-ut-blue" />
+                  <span>Data & Registrasi Mahasiswa</span>
                 </div>
                 <ArrowRight className="w-4 h-4 text-slate-400" />
               </Link>
 
               <Link
-                href="/audit"
+                href="/akademik/jadwal"
                 className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-ut-blue hover:bg-ut-navy/5 text-slate-700 hover:text-ut-navy font-semibold text-xs transition"
               >
                 <div className="flex items-center gap-2.5">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span>Audit Log Logins</span>
+                  <Calendar className="w-4 h-4 text-emerald-600" />
+                  <span>Jadwal Perkuliahan</span>
                 </div>
                 <ArrowRight className="w-4 h-4 text-slate-400" />
               </Link>
 
               <Link
-                href="/menus"
+                href="/akademik/nilai"
                 className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-ut-blue hover:bg-ut-navy/5 text-slate-700 hover:text-ut-navy font-semibold text-xs transition"
               >
                 <div className="flex items-center gap-2.5">
-                  <FileText className="w-4 h-4 text-amber-600" />
-                  <span>Kelola Menu & Akses</span>
+                  <Star className="w-4 h-4 text-amber-500" />
+                  <span>Rekap & Input Nilai</span>
                 </div>
                 <ArrowRight className="w-4 h-4 text-slate-400" />
               </Link>
-            </div>
 
-            <div className="mt-5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed">
-              <span className="font-bold block mb-0.5">ℹ️ Catatan Sistem:</span>
-              Dashboard ini dikonfigurasi dengan sistem keamanan tinggi (Rate Limiting, Header Security, CSRF Protection).
+              <Link
+                href="/laporan"
+                className="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-ut-blue hover:bg-ut-navy/5 text-slate-700 hover:text-ut-navy font-semibold text-xs transition"
+              >
+                <div className="flex items-center gap-2.5">
+                  <FileBarChart className="w-4 h-4 text-purple-600" />
+                  <span>Laporan Statistikal Akademik</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-400" />
+              </Link>
             </div>
           </div>
         </div>
