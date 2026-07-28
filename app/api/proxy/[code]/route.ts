@@ -72,17 +72,19 @@ async function handleProxyRequest(req: Request, code: string) {
       let rawVars = clientBody.variables ?? clientBody ?? {}
       if (typeof rawVars !== 'object' || rawVars === null) rawVars = {}
 
-      // Clean up empty string values for optional variables (e.g. optional Enums)
+      // Filter variables: only include variables actually used in query ($varName)
       const cleanVars: Record<string, any> = {}
       for (const [key, val] of Object.entries(rawVars)) {
-        if (val === '' || val === null) {
-          // Keep key only if variable is required (e.g. $search: String!)
-          const isRequired = new RegExp(`\\$${key}\\s*:\\s*[^,\\)\\s]+!`).test(queryStr)
-          if (isRequired) {
+        if (queryStr.includes('$' + key)) {
+          if (val === '' || val === null) {
+            // Keep key only if variable is required (e.g. $search: String!)
+            const isRequired = new RegExp(`\\$${key}\\s*:\\s*[^,\\)\\s]+!`).test(queryStr)
+            if (isRequired) {
+              cleanVars[key] = val
+            }
+          } else {
             cleanVars[key] = val
           }
-        } else {
-          cleanVars[key] = val
         }
       }
 
