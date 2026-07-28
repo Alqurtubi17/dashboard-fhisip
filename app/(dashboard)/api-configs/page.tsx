@@ -387,7 +387,7 @@ export default function ApiConfigsPage() {
       if (config.code.includes('TRANSKIP') || config.code.includes('TRANSKRIP') || config.name.includes('transkrip') || config.name.includes('transkip')) {
         defaultVarsStr = JSON.stringify({ nim: '058055786', type: 'rpl' }, null, 2)
       } else if (config.code.includes('MATKUL') || config.code.includes('MATAKULIAH') || config.name.includes('matkul') || config.name.includes('matakuliah')) {
-        defaultVarsStr = JSON.stringify({ kodeFakultas: 3 }, null, 2)
+        defaultVarsStr = JSON.stringify({ kodeFakultas: 3, limit: 100, page: 0 }, null, 2)
       }
     }
 
