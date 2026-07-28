@@ -340,7 +340,11 @@ export default function ApiConfigsPage() {
         const varsObj: Record<string, any> = {}
         for (const [, name, rawType] of typeMatches) {
           const type = rawType.replace('!', '')
-          if (type === 'Int' || type === 'Float' || name.startsWith('id') || name.endsWith('Id') || name.includes('ProgramStudi')) {
+          if (name === 'skip') {
+            varsObj[name] = 0
+          } else if (name === 'sort') {
+            varsObj[name] = 'ASC'
+          } else if (type === 'Int' || type === 'Float' || name.startsWith('id') || name.endsWith('Id') || name.includes('ProgramStudi')) {
             varsObj[name] = name.includes('ProgramStudi') ? 311 : 10
           } else if (type === 'Boolean') {
             varsObj[name] = true
@@ -361,7 +365,9 @@ export default function ApiConfigsPage() {
           const varsObj: Record<string, any> = {}
           const varNames = [...new Set(varMatches.map((m) => m[1]))]
           for (const name of varNames) {
-            if (name.includes('ProgramStudi') || name === 'limit' || name === 'page') varsObj[name] = name.includes('ProgramStudi') ? 311 : 10
+            if (name === 'skip') varsObj[name] = 0
+            else if (name === 'sort') varsObj[name] = 'ASC'
+            else if (name.includes('ProgramStudi') || name === 'limit' || name === 'page') varsObj[name] = name.includes('ProgramStudi') ? 311 : 10
             else if (name === 'nim') varsObj[name] = '012345678'
             else if (name === 'tanggal_sk' || name.includes('tanggal')) varsObj[name] = '2024-01-01T00:00:00Z'
             else if (name === 'masa') varsObj[name] = '20261'

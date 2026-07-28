@@ -67,10 +67,26 @@ async function handleProxyRequest(req: Request, code: string) {
     let fetchBody: string | undefined = undefined
 
     if (config.graphqlQuery) {
-      // Build GraphQL payload
+      let rawVars = clientBody.variables ?? clientBody ?? {}
+      if (typeof rawVars !== 'object' || rawVars === null) rawVars = {}
+
+      // Clean up empty string values for optional variables (e.g. optional Enums)
+      const cleanVars: Record<string, any> = {}
+      for (const [key, val] of Object.entries(rawVars)) {
+        if (val === '' || val === null) {
+          // Keep key only if variable is required (e.g. $search: String!)
+          const isRequired = new RegExp(`\\$${key}\\s*:\\s*[^,\\)\\s]+!`).test(config.graphqlQuery)
+          if (isRequired) {
+            cleanVars[key] = val
+          }
+        } else {
+          cleanVars[key] = val
+        }
+      }
+
       fetchBody = JSON.stringify({
         query: config.graphqlQuery,
-        variables: clientBody.variables ?? clientBody ?? {},
+        variables: cleanVars,
       })
     } else if (req.method !== 'GET') {
       fetchBody = JSON.stringify(clientBody)
