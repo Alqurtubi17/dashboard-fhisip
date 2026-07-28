@@ -150,8 +150,9 @@ export async function getExternalToken(
       }
     }
 
-    // Set 24 hours expiry if not specified
-    const expiresAtDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    // Set randomized 20 - 30 minutes expiry for automatic token refresh
+    const randomMinutes = 20 + Math.floor(Math.random() * 10) // 20 to 29 minutes
+    const expiresAtDate = new Date(Date.now() + randomMinutes * 60 * 1000)
 
     await prisma.externalAuthProvider.update({
       where: { id: providerId },
