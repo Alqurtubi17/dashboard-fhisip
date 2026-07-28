@@ -1002,6 +1002,9 @@ export default function ApiConfigsPage() {
                   onChange={(e) => setConfigForm({ ...configForm, graphqlQuery: e.target.value })}
                   className="input text-xs font-mono"
                 />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Catatan: Nilai parameter (seperti <code className="bg-slate-100 text-slate-700 px-1 rounded">nim</code> atau <code className="bg-slate-100 text-slate-700 px-1 rounded">type</code>) diisi & diuji secara fleksibel di dalam kotak parameter JSON saat Anda mengeklik tombol <span className="font-semibold text-slate-600">Uji Proxy (▶️)</span>.
+                </p>
               </div>
 
               <div className="pt-2 flex justify-end gap-2">
