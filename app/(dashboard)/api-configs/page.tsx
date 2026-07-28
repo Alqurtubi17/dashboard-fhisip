@@ -388,6 +388,8 @@ export default function ApiConfigsPage() {
         defaultVarsStr = JSON.stringify({ nim: '058055786', type: 'rpl' }, null, 2)
       } else if (config.code.includes('BILLING_DETAIL') || config.name.includes('billing-detail')) {
         defaultVarsStr = JSON.stringify({ noBilling: '20252043301851050021' }, null, 2)
+      } else if (config.code.includes('BILLING_NIM') || config.name.includes('billing-nim') || config.code === 'D8P4LXB_AG3') {
+        defaultVarsStr = JSON.stringify({ nim: '052109953' }, null, 2)
       } else if (config.code.includes('BILLING') || config.name.includes('billing')) {
         defaultVarsStr = JSON.stringify({ masa: '20261', limit: 100, page: 0 }, null, 2)
       } else if (config.code.includes('MATKUL') || config.code.includes('MATAKULIAH') || config.name.includes('matkul') || config.name.includes('matakuliah')) {
