@@ -389,7 +389,7 @@ export default function ApiConfigsPage() {
       } else if (config.code.includes('MATKUL') || config.code.includes('MATAKULIAH') || config.name.includes('matkul') || config.name.includes('matakuliah')) {
         defaultVarsStr = JSON.stringify({ kodeFakultas: 3, limit: 100, page: 0 }, null, 2)
       } else {
-        defaultVarsStr = JSON.stringify({ limit: 500, page: 0 }, null, 2)
+        defaultVarsStr = JSON.stringify({ kodeFakultas: 3, limit: 500, page: 0 }, null, 2)
       }
     }
 
