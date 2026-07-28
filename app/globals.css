@@ -39,15 +39,15 @@ body {
   }
 
   .btn-primary {
-    @apply bg-ut-navy text-white rounded-xl px-4 py-2.5 font-semibold hover:bg-ut-blue transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2;
+    @apply bg-gradient-to-r from-[#001D33] via-[#002B49] to-[#004273] text-white rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold tracking-wide border border-white/10 shadow-md shadow-slate-900/15 hover:shadow-lg hover:shadow-ut-navy/30 hover:from-[#002B49] hover:to-[#005691] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center justify-center gap-2 cursor-pointer;
   }
 
   .btn-gold {
-    @apply bg-ut-gold text-ut-navy rounded-xl px-4 py-2.5 font-bold hover:bg-amber-400 transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2;
+    @apply bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-slate-950 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-extrabold tracking-wide border border-amber-300 shadow-md shadow-amber-500/20 hover:shadow-lg hover:shadow-amber-500/35 hover:from-amber-300 hover:to-amber-400 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer;
   }
 
   .btn-secondary {
-    @apply bg-white text-slate-700 border border-slate-300 rounded-xl px-4 py-2.5 font-medium hover:bg-slate-50 hover:text-ut-navy transition-all active:scale-[0.98] flex items-center justify-center gap-2;
+    @apply bg-white text-slate-700 border border-slate-200/90 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-semibold shadow-sm hover:bg-slate-50 hover:text-ut-navy hover:border-slate-300 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer;
   }
 
   .input {

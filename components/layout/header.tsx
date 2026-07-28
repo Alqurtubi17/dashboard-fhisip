@@ -1,7 +1,20 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { LogOut, Menu, Calendar, Building2 } from 'lucide-react'
+import { LogOut, Menu, Calendar } from 'lucide-react'
+
+function getUTAcademicYear(date: Date = new Date()) {
+  const year = date.getFullYear()
+  const month = date.getMonth() // 0-indexed (0 = Jan, 6 = Juli)
+
+  // Juli - Desember: Semester Ganjil (cth. Juli 2026 => 2026/2027 Ganjil)
+  // Januari - Juni: Semester Genap (cth. Maret 2027 => 2026/2027 Genap)
+  if (month >= 6) {
+    return `T.A. ${year}/${year + 1} Ganjil`
+  } else {
+    return `T.A. ${year - 1}/${year} Genap`
+  }
+}
 
 export default function Header({
   user,
@@ -30,13 +43,9 @@ export default function Header({
         </button>
 
         <div className="hidden md:flex items-center gap-3 text-xs border-r border-slate-200 pr-4">
-          <div className="flex items-center gap-1.5 font-bold text-ut-navy bg-ut-navy/5 px-2.5 py-1 rounded-lg border border-ut-navy/10">
-            <Building2 className="w-3.5 h-3.5 text-ut-blue" />
-            <span>FHISIP UT</span>
-          </div>
           <div className="flex items-center gap-1.5 font-medium text-slate-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 text-amber-900">
             <Calendar className="w-3.5 h-3.5 text-amber-600" />
-            <span>T.A. 2026/2027 Ganjil</span>
+            <span>{getUTAcademicYear()}</span>
           </div>
         </div>
 

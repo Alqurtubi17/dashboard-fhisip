@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { createAuditLog } from '@/lib/audit'
 
 const menuSchema = z.object({
   name: z.string().min(1).optional(),
@@ -31,15 +32,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (permissionKey !== undefined) updateData.permissionKey = permissionKey?.trim() || null
 
   const updated = await prisma.menu.update({ where: { id: params.id }, data: updateData })
+  await createAuditLog(`EDIT_MENU: ${updated.name}`, req)
+
   return NextResponse.json(updated)
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const menu = await prisma.menu.findUnique({ where: { id: params.id }, include: { children: true } })
   if (!menu) return NextResponse.json({ error: 'Menu tidak ditemukan' }, { status: 404 })
   if (menu.children.length > 0) {
     return NextResponse.json({ error: 'Hapus submenu terlebih dahulu sebelum menghapus menu induk' }, { status: 409 })
   }
   await prisma.menu.delete({ where: { id: params.id } })
+  await createAuditLog(`HAPUS_MENU: ${menu.name}`, req)
+
   return NextResponse.json({ success: true })
 }

@@ -103,3 +103,39 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+model ExternalAuthProvider {
+  id               String      @id @default(cuid())
+  name             String
+  loginUrl         String
+  authPayloadJson  String      @db.Text
+  tokenResponseKey String      @default("access_token")
+  contentType      String      @default("application/json")
+  graphqlQuery     String?     @db.Text
+  headerName       String      @default("Authorization")
+  headerPrefix     String      @default("Bearer ")
+  cachedToken      String?     @db.Text
+  tokenExpiresAt   DateTime?
+  status           Status      @default(ACTIVE)
+  apiConfigs       ApiConfig[]
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@map("external_auth_providers")
+}
+
+model ApiConfig {
+  id           String                @id @default(cuid())
+  code         String                @unique
+  name         String
+  targetUrl    String
+  method       String                @default("POST")
+  graphqlQuery String?               @db.Text
+  providerId   String?
+  provider     ExternalAuthProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  status       Status                @default(ACTIVE)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@map("api_configs")
+}

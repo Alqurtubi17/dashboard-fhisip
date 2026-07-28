@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 
+import { createAuditLog } from '@/lib/audit'
+
 const roleSchema = z.object({
   name: z.string().min(2, 'Nama role minimal 2 karakter'),
   slug: z
@@ -34,5 +36,6 @@ export async function POST(req: NextRequest) {
   }
 
   const role = await prisma.role.create({ data: parsed.data })
+  await createAuditLog(`TAMBAH_ROLE: ${role.name}`, req)
   return NextResponse.json(role, { status: 201 })
 }

@@ -81,6 +81,8 @@ const MENUS: {
       { name: 'Manajemen Role', icon: 'Shield', url: '/roles', permissionKey: 'roles.view', sort: 1 },
       { name: 'Manajemen Menu', icon: 'Menu', url: '/menus', permissionKey: 'menus.view', sort: 2 },
       { name: 'Manajemen User', icon: 'UserCog', url: '/users', permissionKey: 'users.view', sort: 3 },
+      { name: 'Integrasi API & Login', icon: 'KeyRound', url: '/api-configs', permissionKey: 'roles.view', sort: 4 },
+      { name: 'Audit Log', icon: 'History', url: '/audit', permissionKey: 'roles.view', sort: 5 },
     ],
   },
 ]

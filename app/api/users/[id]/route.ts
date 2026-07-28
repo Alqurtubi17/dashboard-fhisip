@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { createAuditLog } from '@/lib/audit'
 
 const updateUserSchema = z.object({
   name: z.string().min(2).optional(),
@@ -69,6 +70,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     },
   })
 
+  await createAuditLog(`EDIT_USER: ${updated.name}`, req)
+
   return NextResponse.json(updated)
 }
 
@@ -82,5 +85,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (!user) return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 })
 
   await prisma.user.delete({ where: { id: params.id } })
+  await createAuditLog(`HAPUS_USER: ${user.name}`, req)
+
   return NextResponse.json({ success: true })
 }

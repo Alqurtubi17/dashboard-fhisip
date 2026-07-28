@@ -6,7 +6,6 @@ import {
   FileBarChart,
   Globe2,
   ArrowRight,
-  Sparkles,
   Award,
   CheckCircle2,
   Calendar,
@@ -29,18 +28,18 @@ export default function DashboardPage() {
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Welcome Banner UT FHISIP */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#001D33] via-[#002B49] to-[#005691] text-white p-6 sm:p-8 shadow-xl border border-white/10">
-        {/* Background Decorative SVG */}
-        <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-10 pointer-events-none flex items-center justify-end pr-10">
-          <FhisipLogo className="w-96 h-96" variant="gold" />
+        {/* Background Decorative UT Logo Image */}
+        <div className="absolute right-8 top-1/2 -translate-y-1/2 opacity-30 pointer-events-none hidden md:block w-48 h-48">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/ut-banner-bg.png"
+            alt=""
+            className="w-full h-full object-contain filter brightness-150"
+          />
         </div>
         <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-amber-400/20 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="relative z-10 space-y-4 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-amber-400 text-slate-950 shadow-sm">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Sistem Informasi Academic Platform FHISIP UT</span>
-          </div>
-
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
             Fakultas Hukum, Ilmu Sosial dan Ilmu Politik
           </h1>

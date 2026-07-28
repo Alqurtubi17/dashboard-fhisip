@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { sanitizeInput, isValidPassword } from '@/lib/security'
+import { createAuditLog } from '@/lib/audit'
 
 const createUserSchema = z.object({
   name: z.string().min(2, 'Nama minimal 2 karakter'),
@@ -80,6 +81,8 @@ export async function POST(req: NextRequest) {
         createdAt: true,
       },
     })
+
+    await createAuditLog(`TAMBAH_USER: ${user.name} (${user.email})`, req)
 
     return NextResponse.json(user, { status: 201 })
   } catch (error) {

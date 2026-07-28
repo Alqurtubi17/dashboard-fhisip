@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { History, RefreshCw, Search, Monitor, Globe, User } from 'lucide-react'
+import { Search, Monitor, User, Globe, Activity, RefreshCw } from 'lucide-react'
+import { Pagination } from '@/components/ui/pagination'
 
 type AuditLogItem = {
   id: string
@@ -50,6 +51,8 @@ export default function AuditLogPage() {
   const [logs, setLogs] = useState<AuditLogItem[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const fetchLogs = async () => {
     setLoading(true)
@@ -62,6 +65,11 @@ export default function AuditLogPage() {
     fetchLogs()
   }, [])
 
+  const handleSearchChange = (val: string) => {
+    setSearch(val)
+    setCurrentPage(1)
+  }
+
   const filteredLogs = logs.filter(
     (log) =>
       log.action.toLowerCase().includes(search.toLowerCase()) ||
@@ -71,19 +79,23 @@ export default function AuditLogPage() {
       formatIp(log.ip).toLowerCase().includes(search.toLowerCase())
   )
 
+  const paginatedLogs = filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
   const getActionBadge = (action: string) => {
-    switch (action.toUpperCase()) {
-      case 'LOGIN':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-100'
-      case 'LOGOUT':
-        return 'bg-slate-100 text-slate-700 border-slate-200'
-      case 'DELETE':
-        return 'bg-red-50 text-red-700 border-red-100'
-      case 'CREATE':
-        return 'bg-blue-50 text-blue-700 border-blue-100'
-      default:
-        return 'bg-amber-50 text-amber-700 border-amber-100'
+    const act = action.toUpperCase()
+    if (act.startsWith('TAMBAH') || act.startsWith('CREATE')) {
+      return 'bg-blue-50 text-blue-700 border-blue-200'
     }
+    if (act.startsWith('EDIT') || act.startsWith('UPDATE')) {
+      return 'bg-amber-50 text-amber-700 border-amber-200'
+    }
+    if (act.startsWith('HAPUS') || act.startsWith('DELETE')) {
+      return 'bg-rose-50 text-rose-700 border-rose-200'
+    }
+    if (act.startsWith('LOGIN')) {
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    }
+    return 'bg-slate-100 text-slate-700 border-slate-200'
   }
 
   return (
@@ -93,9 +105,15 @@ export default function AuditLogPage() {
           <h1 className="text-2xl font-semibold text-slate-800">Audit Log</h1>
           <p className="text-slate-500 text-sm">Riwayat aktivitas dan sesi login dalam sistem</p>
         </div>
-        <button onClick={fetchLogs} disabled={loading} className="btn-secondary flex items-center gap-2 text-sm">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh Log
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold flex items-center gap-2">
+            <Activity className="w-4 h-4 text-emerald-600 animate-pulse" />
+            <span>Monitoring Aktif</span>
+          </div>
+          <button onClick={fetchLogs} disabled={loading} className="btn-secondary flex items-center gap-2 text-sm">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
@@ -104,7 +122,7 @@ export default function AuditLogPage() {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Cari aksi, nama user, atau IP..."
             className="input pl-10"
           />
@@ -112,83 +130,94 @@ export default function AuditLogPage() {
       </div>
 
       <div className="card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left">
-            <tr>
-              <th className="px-5 py-3 font-medium">Aksi</th>
-              <th className="px-5 py-3 font-medium">Pengguna</th>
-              <th className="px-5 py-3 font-medium">IP Address</th>
-              <th className="px-5 py-3 font-medium">Perangkat & Browser</th>
-              <th className="px-5 py-3 font-medium">Waktu</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[680px]">
+            <thead className="bg-slate-50 text-slate-500 text-left">
               <tr>
-                <td colSpan={5} className="px-5 py-6 text-center text-slate-400">
-                  Memuat data audit log...
-                </td>
+                <th className="px-5 py-3 font-medium">Aksi</th>
+                <th className="px-5 py-3 font-medium">Pengguna</th>
+                <th className="px-5 py-3 font-medium">IP Address</th>
+                <th className="px-5 py-3 font-medium">Perangkat & Browser</th>
+                <th className="px-5 py-3 font-medium">Waktu</th>
               </tr>
-            )}
-            {!loading && filteredLogs.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-5 py-6 text-center text-slate-400">
-                  Belum ada catatan aktivitas.
-                </td>
-              </tr>
-            )}
-            {filteredLogs.map((log) => (
-              <tr key={log.id} className="border-t border-slate-100">
-                <td className="px-5 py-3">
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getActionBadge(
-                      log.action
-                    )}`}
-                  >
-                    {log.action}
-                  </span>
-                </td>
-                <td className="px-5 py-3">
-                  {log.user ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
-                        <User className="w-3.5 h-3.5" />
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-6 text-center text-slate-400">
+                    Memuat data audit log...
+                  </td>
+                </tr>
+              )}
+              {!loading && filteredLogs.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-6 text-center text-slate-400">
+                    Belum ada catatan aktivitas.
+                  </td>
+                </tr>
+              )}
+              {paginatedLogs.map((log) => (
+                <tr key={log.id} className="border-t border-slate-100">
+                  <td className="px-5 py-3">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getActionBadge(
+                        log.action
+                      )}`}
+                    >
+                      {log.action}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    {log.user ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+                          <User className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-700">{log.user.name}</p>
+                          <p className="text-xs text-slate-400">{log.user.email}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-slate-700">{log.user.name}</p>
-                        <p className="text-xs text-slate-400">{log.user.email}</p>
-                      </div>
+                    ) : (
+                      <span className="text-slate-400 italic">Sistem / Tamu</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 font-mono text-xs text-slate-700 font-medium">
+                    <div className="flex items-center gap-1.5" title={log.ip || '127.0.0.1'}>
+                      <Globe className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span>{formatIp(log.ip)}</span>
                     </div>
-                  ) : (
-                    <span className="text-slate-400 italic">Sistem / Tamu</span>
-                  )}
-                </td>
-                <td className="px-5 py-3 font-mono text-xs text-slate-700 font-medium">
-                  <div className="flex items-center gap-1.5" title={log.ip || '127.0.0.1'}>
-                    <Globe className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <span>{formatIp(log.ip)}</span>
-                  </div>
-                </td>
-                <td className="px-5 py-3 text-xs text-slate-600 max-w-xs" title={log.browser || 'Unknown'}>
-                  <div className="flex items-center gap-1.5">
-                    <Monitor className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="font-medium">{parseUserAgent(log.browser)}</span>
-                  </div>
-                </td>
-                <td className="px-5 py-3 text-xs text-slate-500 whitespace-nowrap">
-                  {new Date(log.createdAt).toLocaleString('id-ID', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  })}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                  <td className="px-5 py-3 text-xs text-slate-600 max-w-xs" title={log.browser || 'Unknown'}>
+                    <div className="flex items-center gap-1.5">
+                      <Monitor className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="font-medium">{parseUserAgent(log.browser)}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3 text-xs text-slate-500 whitespace-nowrap">
+                    {new Date(log.createdAt).toLocaleString('id-ID', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!loading && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredLogs.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
     </div>
   )

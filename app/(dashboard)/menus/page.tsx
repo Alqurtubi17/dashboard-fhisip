@@ -126,8 +126,9 @@ export default function MenusPage() {
           <h1 className="text-2xl font-semibold text-slate-800">Manajemen Menu</h1>
           <p className="text-slate-500 text-sm">Atur struktur sidebar dan permission key yang mengontrol visibilitasnya</p>
         </div>
-        <button onClick={() => openCreate()} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Tambah Menu Induk
+        <button onClick={() => openCreate()} className="btn-primary">
+          <Plus className="w-4 h-4 text-amber-400 stroke-[2.5]" />
+          <span>Tambah Menu Induk</span>
         </button>
       </div>
 

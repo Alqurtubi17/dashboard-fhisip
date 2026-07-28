@@ -1,11 +1,11 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Loader2, Lock, Mail, ShieldCheck, Sparkles, Building2 } from 'lucide-react'
+import { Loader2, Lock, Mail, ShieldCheck, Building2, Eye, EyeOff } from 'lucide-react'
 import { FhisipLogo } from '@/components/ui/fhisip-logo'
 
 const loginSchema = z.object({
@@ -19,6 +19,7 @@ function LoginFormContent() {
   const searchParams = useSearchParams()
   const [serverError, setServerError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const {
     register,
@@ -77,11 +78,19 @@ function LoginFormContent() {
           <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
           <input
             {...register('password')}
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             placeholder="••••••••"
-            className="input pl-10 focus:ring-ut-blue"
+            className="input pl-10 pr-10 focus:ring-ut-blue"
             autoComplete="current-password"
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-1 rounded-lg"
+            title={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+          >
+            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
         </div>
         {errors.password && <p className="text-xs text-red-500 mt-1 font-medium">{errors.password.message}</p>}
       </div>
@@ -101,6 +110,10 @@ function LoginFormContent() {
 }
 
 export default function LoginPage() {
+  useEffect(() => {
+    document.title = 'Login | FHISIP'
+  }, [])
+
   return (
     <div className="min-h-screen relative flex items-center justify-center bg-gradient-to-br from-[#001D33] via-[#002B49] to-[#004273] px-4 py-8 overflow-hidden">
       {/* Decorative Orbs & Grid Overlay */}
@@ -112,10 +125,6 @@ export default function LoginPage() {
       <div className="w-full max-w-md relative z-10 space-y-6">
         {/* Top Institutional Header Badge */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-extrabold bg-amber-400 text-slate-950 shadow-md">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>UNIVERSITAS TERBUKA</span>
-          </div>
           <div className="flex justify-center my-3">
             <FhisipLogo className="w-20 h-20 shadow-2xl rounded-2xl" variant="gold" />
           </div>

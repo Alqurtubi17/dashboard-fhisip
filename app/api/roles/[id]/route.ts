@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { createAuditLog } from '@/lib/audit'
 
 const updateSchema = z.object({
   name: z.string().min(2).optional(),
@@ -27,10 +28,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!role) return NextResponse.json({ error: 'Role tidak ditemukan' }, { status: 404 })
 
   const updated = await prisma.role.update({ where: { id: params.id }, data: parsed.data })
+  await createAuditLog(`EDIT_ROLE: ${updated.name}`, req)
+
   return NextResponse.json(updated)
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const role = await prisma.role.findUnique({ where: { id: params.id } })
   if (!role) return NextResponse.json({ error: 'Role tidak ditemukan' }, { status: 404 })
   if (role.isSystem) {
@@ -46,5 +49,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   }
 
   await prisma.role.delete({ where: { id: params.id } })
+  await createAuditLog(`HAPUS_ROLE: ${role.name}`, req)
+
   return NextResponse.json({ success: true })
 }

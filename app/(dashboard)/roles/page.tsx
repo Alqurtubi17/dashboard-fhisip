@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Shield, Trash2, Pencil, KeySquare, X } from 'lucide-react'
+import { Pagination } from '@/components/ui/pagination'
 
 type Role = {
   id: string
@@ -33,6 +34,8 @@ export default function RolesPage() {
   const [editingRole, setEditingRole] = useState<Role | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Role | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const {
     register,
@@ -52,6 +55,8 @@ export default function RolesPage() {
   useEffect(() => {
     loadRoles()
   }, [])
+
+  const paginatedRoles = roles.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const openCreate = () => {
     setEditingRole(null)
@@ -105,85 +110,97 @@ export default function RolesPage() {
           <h1 className="text-2xl font-semibold text-slate-800">Manajemen Role</h1>
           <p className="text-slate-500 text-sm">Kelola peran pengguna dan hak akses sistem</p>
         </div>
-        <button onClick={openCreate} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Tambah Role
+        <button onClick={openCreate} className="btn-primary">
+          <Plus className="w-4 h-4 text-amber-400 stroke-[2.5]" />
+          <span>Tambah Role</span>
         </button>
       </div>
 
       <div className="card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left">
-            <tr>
-              <th className="px-5 py-3 font-medium">Role</th>
-              <th className="px-5 py-3 font-medium">Slug</th>
-              <th className="px-5 py-3 font-medium">Jumlah User</th>
-              <th className="px-5 py-3 font-medium">Permission Aktif</th>
-              <th className="px-5 py-3 font-medium text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
+            <thead className="bg-slate-50 text-slate-500 text-left">
               <tr>
-                <td colSpan={5} className="px-5 py-6 text-center text-slate-400">
-                  Memuat data...
-                </td>
+                <th className="px-5 py-3 font-medium">Role</th>
+                <th className="px-5 py-3 font-medium">Slug</th>
+                <th className="px-5 py-3 font-medium">Jumlah User</th>
+                <th className="px-5 py-3 font-medium">Permission Aktif</th>
+                <th className="px-5 py-3 font-medium text-right">Aksi</th>
               </tr>
-            )}
-            {!loading && roles.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-5 py-6 text-center text-slate-400">
-                  Belum ada role.
-                </td>
-              </tr>
-            )}
-            {roles.map((role) => (
-              <tr key={role.id} className="border-t border-slate-100">
-                <td className="px-5 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Shield className="w-4 h-4 text-primary" />
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-6 text-center text-slate-400">
+                    Memuat data...
+                  </td>
+                </tr>
+              )}
+              {!loading && roles.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-6 text-center text-slate-400">
+                    Belum ada role.
+                  </td>
+                </tr>
+              )}
+              {paginatedRoles.map((role) => (
+                <tr key={role.id} className="border-t border-slate-100">
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Shield className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-700">{role.name}</p>
+                        {role.isSystem && <p className="text-xs text-amber-600 font-medium">Role Sistem</p>}
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-slate-700">{role.name}</p>
-                      {role.isSystem && <p className="text-xs text-amber-600 font-medium">Role Sistem</p>}
+                  </td>
+                  <td className="px-5 py-3 text-slate-500 font-mono text-xs">{role.slug}</td>
+                  <td className="px-5 py-3 text-slate-600">{role._count.users}</td>
+                  <td className="px-5 py-3 text-slate-600">
+                    {role.isSystem ? 'Semua (Superadmin)' : role._count.permissions}
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <Link
+                        href={`/roles/${role.id}/permissions`}
+                        className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+                        title="Atur Permission & Menu"
+                      >
+                        <KeySquare className="w-4 h-4" />
+                      </Link>
+                      <button
+                        onClick={() => openEdit(role)}
+                        className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-primary"
+                        title="Edit Nama & Deskripsi"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(role)}
+                        disabled={role.isSystem}
+                        className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:hover:bg-transparent"
+                        title="Hapus role"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                  </div>
-                </td>
-                <td className="px-5 py-3 text-slate-500 font-mono text-xs">{role.slug}</td>
-                <td className="px-5 py-3 text-slate-600">{role._count.users}</td>
-                <td className="px-5 py-3 text-slate-600">
-                  {role.isSystem ? 'Semua (Superadmin)' : role._count.permissions}
-                </td>
-                <td className="px-5 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <Link
-                      href={`/roles/${role.id}/permissions`}
-                      className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
-                      title="Atur Permission & Menu"
-                    >
-                      <KeySquare className="w-4 h-4" />
-                    </Link>
-                    <button
-                      onClick={() => openEdit(role)}
-                      className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-primary"
-                      title="Edit Nama & Deskripsi"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(role)}
-                      disabled={role.isSystem}
-                      className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:hover:bg-transparent"
-                      title="Hapus role"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!loading && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={roles.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
 
       {/* Create / Edit Modal */}

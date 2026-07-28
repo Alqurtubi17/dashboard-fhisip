@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import * as Icons from 'lucide-react'
-import { ChevronDown, X, ShieldCheck } from 'lucide-react'
+import { ChevronDown, X } from 'lucide-react'
 import { FhisipLogo } from '../ui/fhisip-logo'
 
 type MenuItem = {
@@ -40,7 +40,7 @@ export default function Sidebar({
       <div className="p-5 border-b border-white/10 bg-gradient-to-b from-black/20 to-transparent">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <FhisipLogo className="w-10 h-10" variant="gold" />
+            <FhisipLogo className="w-8 h-8" variant="gold" />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-white tracking-wide text-base">FHISIP UT</span>
@@ -57,12 +57,6 @@ export default function Sidebar({
             </button>
           )}
         </div>
-      </div>
-
-      {/* Sub-Header Banner */}
-      <div className="px-5 py-3 bg-white/5 border-b border-white/10 flex items-center gap-2 text-xs text-amber-300 font-medium">
-        <ShieldCheck className="w-4 h-4 shrink-0 text-amber-400" />
-        <span className="truncate">Sistem Informasi Administrasi Kampus</span>
       </div>
 
       {/* Navigation */}
@@ -147,13 +141,13 @@ export default function Sidebar({
   return (
     <>
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block shrink-0">{content}</div>
+      <div className="hidden lg:block shrink-0 sticky top-0 h-screen">{content}</div>
 
       {/* Mobile Drawer Overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden flex">
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onMobileClose} />
-          <div className="relative z-10">{content}</div>
+          <div className="relative z-10 h-full">{content}</div>
         </div>
       )}
     </>

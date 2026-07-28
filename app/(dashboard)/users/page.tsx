@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, UserCog, Trash2, Pencil, Search, X, CheckCircle, XCircle } from 'lucide-react'
+import { Plus, UserCog, Trash2, Pencil, Search, X, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react'
+import { Pagination } from '@/components/ui/pagination'
 
 type RoleOption = {
   id: string
@@ -40,6 +41,9 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const {
     register,
@@ -60,8 +64,14 @@ export default function UsersPage() {
     loadData()
   }, [])
 
+  const handleSearchChange = (val: string) => {
+    setSearch(val)
+    setCurrentPage(1)
+  }
+
   const openCreate = () => {
     setEditingUser(null)
+    setShowPassword(false)
     reset({ name: '', email: '', password: '', roleId: roles[0]?.id ?? '', status: 'ACTIVE' })
     setError(null)
     setModalOpen(true)
@@ -69,6 +79,7 @@ export default function UsersPage() {
 
   const openEdit = (user: User) => {
     setEditingUser(user)
+    setShowPassword(false)
     reset({ name: user.name, email: user.email, password: '', roleId: user.roleId, status: user.status })
     setError(null)
     setModalOpen(true)
@@ -117,6 +128,8 @@ export default function UsersPage() {
       u.role.name.toLowerCase().includes(search.toLowerCase())
   )
 
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -124,8 +137,9 @@ export default function UsersPage() {
           <h1 className="text-2xl font-semibold text-slate-800">Manajemen User</h1>
           <p className="text-slate-500 text-sm">Kelola daftar akun pengguna dan penugasan role</p>
         </div>
-        <button onClick={openCreate} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Tambah User
+        <button onClick={openCreate} className="btn-primary">
+          <Plus className="w-4 h-4 text-amber-400 stroke-[2.5]" />
+          <span>Tambah User</span>
         </button>
       </div>
 
@@ -135,7 +149,7 @@ export default function UsersPage() {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Cari nama, email, atau role..."
             className="input pl-10"
           />
@@ -143,89 +157,100 @@ export default function UsersPage() {
       </div>
 
       <div className="card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left">
-            <tr>
-              <th className="px-5 py-3 font-medium">Pengguna</th>
-              <th className="px-5 py-3 font-medium">Role</th>
-              <th className="px-5 py-3 font-medium">Status</th>
-              <th className="px-5 py-3 font-medium">Tanggal Dibuat</th>
-              <th className="px-5 py-3 font-medium text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead className="bg-slate-50 text-slate-500 text-left">
               <tr>
-                <td colSpan={5} className="px-5 py-6 text-center text-slate-400">
-                  Memuat data user...
-                </td>
+                <th className="px-5 py-3 font-medium">Pengguna</th>
+                <th className="px-5 py-3 font-medium">Role</th>
+                <th className="px-5 py-3 font-medium">Status</th>
+                <th className="px-5 py-3 font-medium">Tanggal Dibuat</th>
+                <th className="px-5 py-3 font-medium text-right">Aksi</th>
               </tr>
-            )}
-            {!loading && filteredUsers.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-5 py-6 text-center text-slate-400">
-                  Tidak ada data user ditemukan.
-                </td>
-              </tr>
-            )}
-            {filteredUsers.map((user) => (
-              <tr key={user.id} className="border-t border-slate-100">
-                <td className="px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                      <UserCog className="w-4 h-4 text-primary" />
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-6 text-center text-slate-400">
+                    Memuat data user...
+                  </td>
+                </tr>
+              )}
+              {!loading && filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-6 text-center text-slate-400">
+                    Tidak ada data user ditemukan.
+                  </td>
+                </tr>
+              )}
+              {paginatedUsers.map((user) => (
+                <tr key={user.id} className="border-t border-slate-100">
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                        <UserCog className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-800">{user.name}</p>
+                        <p className="text-xs text-slate-400">{user.email}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-slate-800">{user.name}</p>
-                      <p className="text-xs text-slate-400">{user.email}</p>
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                      {user.role.name}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    {user.status === 'ACTIVE' ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
+                        <CheckCircle className="w-3 h-3" /> Aktif
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                        <XCircle className="w-3 h-3" /> Nonaktif
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-slate-500 text-xs">
+                    {new Date(user.createdAt).toLocaleDateString('id-ID', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => openEdit(user)}
+                        className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-primary"
+                        title="Edit User"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(user)}
+                        className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500"
+                        title="Hapus User"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                  </div>
-                </td>
-                <td className="px-5 py-3">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
-                    {user.role.name}
-                  </span>
-                </td>
-                <td className="px-5 py-3">
-                  {user.status === 'ACTIVE' ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
-                      <CheckCircle className="w-3 h-3" /> Aktif
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
-                      <XCircle className="w-3 h-3" /> Nonaktif
-                    </span>
-                  )}
-                </td>
-                <td className="px-5 py-3 text-slate-500 text-xs">
-                  {new Date(user.createdAt).toLocaleDateString('id-ID', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
-                </td>
-                <td className="px-5 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      onClick={() => openEdit(user)}
-                      className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-primary"
-                      title="Edit User"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(user)}
-                      className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500"
-                      title="Hapus User"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!loading && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredUsers.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
 
       {/* Modal Form */}
@@ -255,12 +280,22 @@ export default function UsersPage() {
                 <label className="text-sm font-medium text-slate-700 mb-1 block">
                   Password {editingUser && <span className="text-xs text-slate-400">(Kosongkan jika tidak diubah)</span>}
                 </label>
-                <input
-                  {...register('password')}
-                  type="password"
-                  className="input"
-                  placeholder={editingUser ? '••••••••' : 'Password baru'}
-                />
+                <div className="relative">
+                  <input
+                    {...register('password')}
+                    type={showPassword ? 'text' : 'password'}
+                    className="input pr-10"
+                    placeholder={editingUser ? '••••••••' : 'Password baru'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-1 rounded-lg"
+                    title={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
                 {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password.message}</p>}
               </div>
 

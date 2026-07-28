@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { createAuditLog } from '@/lib/audit'
 
 export async function GET() {
   const menus = await prisma.menu.findMany({
@@ -39,5 +40,6 @@ export async function POST(req: NextRequest) {
   }
 
   const menu = await prisma.menu.create({ data: cleanData })
+  await createAuditLog(`TAMBAH_MENU: ${menu.name}`, req)
   return NextResponse.json(menu, { status: 201 })
 }
