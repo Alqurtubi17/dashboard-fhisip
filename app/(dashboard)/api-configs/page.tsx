@@ -1040,12 +1040,16 @@ export default function ApiConfigsPage() {
 
             {!testing && testResult && (
               <div className="space-y-3 text-xs">
-                {testedConfig && testedConfig.graphqlQuery && (
+                {testedConfig && (
                   <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="font-semibold text-slate-800 flex items-center gap-1.5">
                         <Code2 className="w-4 h-4 text-ut-navy" />
-                        <span>Variabel Parameter GraphQL (JSON):</span>
+                        <span>
+                          {testedConfig.graphqlQuery
+                            ? 'Variabel Parameter GraphQL (JSON):'
+                            : 'Parameter Request / Query Params (JSON):'}
+                        </span>
                       </label>
                       <button
                         onClick={() => testedConfig && executeProxyTest(testedConfig)}
@@ -1059,11 +1063,11 @@ export default function ApiConfigsPage() {
                       rows={3}
                       value={testVariables}
                       onChange={(e) => setTestVariables(e.target.value)}
-                      placeholder='{\n  "nim": "012345678"\n}'
                       className="input font-mono text-xs bg-white"
+                      placeholder={`{\n  "nim": "058055786",\n  "type": "rpl"\n}`}
                     />
-                    <p className="text-[11px] text-slate-500">
-                      Ubah nilai variabel di atas (misal <code className="bg-slate-200/80 px-1 rounded text-slate-800">nim</code>) lalu klik **Jalankan Ulang Tes** untuk menguji data langsung.
+                    <p className="text-[11px] text-slate-400">
+                      Ubah nilai parameter di atas lalu klik <span className="font-semibold text-slate-700">Jalankan Ulang Tes</span> untuk menguji data secara langsung.
                     </p>
                   </div>
                 )}
