@@ -67,6 +67,7 @@ async function handleProxyRequest(req: Request, code: string) {
     let fetchBody: string | undefined = undefined
 
     if (config.graphqlQuery) {
+      const queryStr = config.graphqlQuery.split(/variables\s*:\s*(?:\|-)?/)[0].trim()
       let rawVars = clientBody.variables ?? clientBody ?? {}
       if (typeof rawVars !== 'object' || rawVars === null) rawVars = {}
 
@@ -75,7 +76,7 @@ async function handleProxyRequest(req: Request, code: string) {
       for (const [key, val] of Object.entries(rawVars)) {
         if (val === '' || val === null) {
           // Keep key only if variable is required (e.g. $search: String!)
-          const isRequired = new RegExp(`\\$${key}\\s*:\\s*[^,\\)\\s]+!`).test(config.graphqlQuery)
+          const isRequired = new RegExp(`\\$${key}\\s*:\\s*[^,\\)\\s]+!`).test(queryStr)
           if (isRequired) {
             cleanVars[key] = val
           }
@@ -85,7 +86,7 @@ async function handleProxyRequest(req: Request, code: string) {
       }
 
       fetchBody = JSON.stringify({
-        query: config.graphqlQuery,
+        query: queryStr,
         variables: cleanVars,
       })
     } else if (req.method !== 'GET') {

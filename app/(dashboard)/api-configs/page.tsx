@@ -19,6 +19,7 @@ import {
   Info,
   HelpCircle,
   Check,
+  Search,
 } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 
@@ -414,8 +415,24 @@ export default function ApiConfigsPage() {
     })
   }
 
-  const paginatedProviders = providers.slice((provPage - 1) * provPageSize, provPage * provPageSize)
-  const paginatedConfigs = configs.slice((confPage - 1) * confPageSize, confPage * confPageSize)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const filteredProviders = providers.filter(
+    (p) =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.loginUrl.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const filteredConfigs = configs.filter(
+    (c) =>
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.targetUrl.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.provider?.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const paginatedProviders = filteredProviders.slice((provPage - 1) * provPageSize, provPage * provPageSize)
+  const paginatedConfigs = filteredConfigs.slice((confPage - 1) * confPageSize, confPage * confPageSize)
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto relative">
@@ -463,30 +480,56 @@ export default function ApiConfigsPage() {
         </div>
       </div>
 
-      {/* Tabs Switcher */}
-      <div className="flex items-center gap-2 border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('configs')}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition ${
-            activeTab === 'configs'
-              ? 'border-ut-navy text-ut-navy'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Link2 className="w-4 h-4" />
-          <span>Daftar Link API Data ({configs.length})</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('providers')}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition ${
-            activeTab === 'providers'
-              ? 'border-ut-navy text-ut-navy'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <KeyRound className="w-4 h-4" />
-          <span>Akun Login Penyedia ({providers.length})</span>
-        </button>
+      {/* Search & Tabs Header */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-b border-slate-200 pb-1">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setActiveTab('configs'); setConfPage(1); }}
+            className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition ${
+              activeTab === 'configs'
+                ? 'border-ut-navy text-ut-navy'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Link2 className="w-4 h-4" />
+            <span>Daftar Link API Data ({filteredConfigs.length})</span>
+          </button>
+          <button
+            onClick={() => { setActiveTab('providers'); setProvPage(1); }}
+            className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition ${
+              activeTab === 'providers'
+                ? 'border-ut-navy text-ut-navy'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <KeyRound className="w-4 h-4" />
+            <span>Akun Login Penyedia ({filteredProviders.length})</span>
+          </button>
+        </div>
+
+        {/* Table Search Input Bar */}
+        <div className="relative mb-2 sm:mb-0 max-w-xs w-full">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder={activeTab === 'configs' ? 'Cari nama API, kode, URL...' : 'Cari nama penyedia, URL...'}
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+              setConfPage(1)
+              setProvPage(1)
+            }}
+            className="w-full pl-9 pr-8 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy transition shadow-xs"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {/* TAB 1: PROVIDERS */}
@@ -596,7 +639,7 @@ export default function ApiConfigsPage() {
             {!loading && (
               <Pagination
                 currentPage={provPage}
-                totalItems={providers.length}
+                totalItems={filteredProviders.length}
                 pageSize={provPageSize}
                 onPageChange={setProvPage}
                 onPageSizeChange={setProvPageSize}
@@ -640,10 +683,10 @@ export default function ApiConfigsPage() {
                       </td>
                     </tr>
                   )}
-                  {!loading && configs.length === 0 && (
+                  {!loading && filteredConfigs.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-5 py-6 text-center text-slate-400">
-                        Belum ada tautan link API data eksternal.
+                        {searchQuery ? 'Tidak ada API data yang cocok dengan kata pencarian.' : 'Belum ada tautan link API data eksternal.'}
                       </td>
                     </tr>
                   )}
@@ -700,7 +743,7 @@ export default function ApiConfigsPage() {
             {!loading && (
               <Pagination
                 currentPage={confPage}
-                totalItems={configs.length}
+                totalItems={filteredConfigs.length}
                 pageSize={confPageSize}
                 onPageChange={setConfPage}
                 onPageSizeChange={setConfPageSize}

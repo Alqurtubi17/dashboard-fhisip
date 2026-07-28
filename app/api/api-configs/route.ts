@@ -30,13 +30,15 @@ export async function POST(req: Request) {
       )
     }
 
+    const cleanGql = graphqlQuery ? graphqlQuery.split(/variables\s*:\s*(?:\|-)?/)[0].trim() : null
+
     const config = await prisma.apiConfig.create({
       data: {
         code: code.toUpperCase().trim(),
         name,
         targetUrl,
         method: method || 'POST',
-        graphqlQuery: graphqlQuery || null,
+        graphqlQuery: cleanGql,
         providerId: providerId || null,
       },
     })

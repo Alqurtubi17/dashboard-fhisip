@@ -20,6 +20,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const body = await req.json()
     const { code, name, targetUrl, method, graphqlQuery, providerId, status } = body
 
+    const cleanGql = graphqlQuery ? graphqlQuery.split(/variables\s*:\s*(?:\|-)?/)[0].trim() : null
+
     const config = await prisma.apiConfig.update({
       where: { id: params.id },
       data: {
@@ -27,7 +29,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         name,
         targetUrl,
         method: method || 'POST',
-        graphqlQuery: graphqlQuery || null,
+        graphqlQuery: cleanGql,
         providerId: providerId || null,
         status,
       },
