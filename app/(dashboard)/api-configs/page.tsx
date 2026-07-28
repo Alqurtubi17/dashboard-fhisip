@@ -344,6 +344,10 @@ export default function ApiConfigsPage() {
             varsObj[name] = 0
           } else if (name === 'sort') {
             varsObj[name] = 'ASC'
+          } else if (name === 'tahap') {
+            varsObj[name] = 1
+          } else if (name === 'search') {
+            varsObj[name] = 'a'
           } else if (type === 'Int' || type === 'Float' || name.startsWith('id') || name.endsWith('Id') || name.includes('ProgramStudi')) {
             varsObj[name] = name.includes('ProgramStudi') ? 311 : 10
           } else if (type === 'Boolean') {
@@ -367,6 +371,8 @@ export default function ApiConfigsPage() {
           for (const name of varNames) {
             if (name === 'skip') varsObj[name] = 0
             else if (name === 'sort') varsObj[name] = 'ASC'
+            else if (name === 'tahap') varsObj[name] = 1
+            else if (name === 'search') varsObj[name] = 'a'
             else if (name.includes('ProgramStudi') || name === 'limit' || name === 'page') varsObj[name] = name.includes('ProgramStudi') ? 311 : 10
             else if (name === 'nim') varsObj[name] = '012345678'
             else if (name === 'tanggal_sk' || name.includes('tanggal')) varsObj[name] = '2024-01-01T00:00:00Z'
