@@ -332,22 +332,43 @@ export default function ApiConfigsPage() {
     setTestedProvider(config.provider || null)
     setTestedConfig(config)
 
-    // Automatically parse all GraphQL variables ($var1, $var2, etc.) from query
+    // Automatically parse all GraphQL variables ($var1: Type) from query with proper data types
     let defaultVarsStr = '{\n}'
     if (config.graphqlQuery) {
-      const varMatches = [...config.graphqlQuery.matchAll(/\$([a-zA-Z0-9_]+)/g)]
-      if (varMatches.length > 0) {
+      const typeMatches = [...config.graphqlQuery.matchAll(/\$([a-zA-Z0-9_]+)\s*:\s*([a-zA-Z0-9_!]+)/g)]
+      if (typeMatches.length > 0) {
         const varsObj: Record<string, any> = {}
-        const varNames = [...new Set(varMatches.map((m) => m[1]))]
-        for (const name of varNames) {
-          if (name === 'nim') varsObj[name] = '012345678'
-          else if (name === 'tanggal_sk' || name.includes('tanggal')) varsObj[name] = '2024-01-01T00:00:00Z'
-          else if (name === 'masa') varsObj[name] = '20261'
-          else if (name === 'limit') varsObj[name] = 10
-          else if (name === 'page') varsObj[name] = 1
-          else varsObj[name] = ''
+        for (const [, name, rawType] of typeMatches) {
+          const type = rawType.replace('!', '')
+          if (type === 'Int' || type === 'Float' || name.startsWith('id') || name.endsWith('Id') || name.includes('ProgramStudi')) {
+            varsObj[name] = name.includes('ProgramStudi') ? 311 : 10
+          } else if (type === 'Boolean') {
+            varsObj[name] = true
+          } else if (name === 'nim') {
+            varsObj[name] = '012345678'
+          } else if (name === 'tanggal_sk' || name.includes('tanggal')) {
+            varsObj[name] = '2024-01-01T00:00:00Z'
+          } else if (name === 'masa') {
+            varsObj[name] = '20261'
+          } else {
+            varsObj[name] = ''
+          }
         }
         defaultVarsStr = JSON.stringify(varsObj, null, 2)
+      } else {
+        const varMatches = [...config.graphqlQuery.matchAll(/\$([a-zA-Z0-9_]+)/g)]
+        if (varMatches.length > 0) {
+          const varsObj: Record<string, any> = {}
+          const varNames = [...new Set(varMatches.map((m) => m[1]))]
+          for (const name of varNames) {
+            if (name.includes('ProgramStudi') || name === 'limit' || name === 'page') varsObj[name] = name.includes('ProgramStudi') ? 311 : 10
+            else if (name === 'nim') varsObj[name] = '012345678'
+            else if (name === 'tanggal_sk' || name.includes('tanggal')) varsObj[name] = '2024-01-01T00:00:00Z'
+            else if (name === 'masa') varsObj[name] = '20261'
+            else varsObj[name] = ''
+          }
+          defaultVarsStr = JSON.stringify(varsObj, null, 2)
+        }
       }
     }
 
