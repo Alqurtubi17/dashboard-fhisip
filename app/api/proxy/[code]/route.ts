@@ -97,9 +97,25 @@ async function handleProxyRequest(req: Request, code: string) {
       if (isGet) {
         const vars = clientBody.variables ?? clientBody
         if (typeof vars === 'object' && vars !== null && Object.keys(vars).length > 0) {
-          const urlObj = new URL(config.targetUrl)
+          let baseUrl = config.targetUrl
+          const pathParamKey = Object.keys(vars).find(
+            (k) =>
+              k === 'noBilling' ||
+              k === 'no_billing' ||
+              k === 'nobilling' ||
+              (k === 'nim' && baseUrl.endsWith('/data-pribadi'))
+          )
+
+          if (pathParamKey && vars[pathParamKey]) {
+            const val = String(vars[pathParamKey]).trim()
+            if (baseUrl.endsWith('/billing-detail') || baseUrl.endsWith('/data-pribadi')) {
+              baseUrl = `${baseUrl}/${val}`
+            }
+          }
+
+          const urlObj = new URL(baseUrl)
           for (const [k, v] of Object.entries(vars)) {
-            if (v !== undefined && v !== null && v !== '') {
+            if (k !== pathParamKey && v !== undefined && v !== null && v !== '') {
               urlObj.searchParams.set(k, String(v))
             }
           }
