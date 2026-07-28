@@ -65,6 +65,7 @@ async function handleProxyRequest(req: Request, code: string) {
     }
 
     let fetchBody: string | undefined = undefined
+    let finalTargetUrl = config.targetUrl
 
     if (config.graphqlQuery) {
       const queryStr = config.graphqlQuery.split(/variables\s*:\s*(?:\|-)?/)[0].trim()
@@ -89,11 +90,25 @@ async function handleProxyRequest(req: Request, code: string) {
         query: queryStr,
         variables: cleanVars,
       })
-    } else if (req.method !== 'GET') {
-      fetchBody = JSON.stringify(clientBody)
+    } else {
+      const isGet = (config.method || '').toUpperCase() === 'GET' || req.method === 'GET'
+      if (isGet) {
+        const vars = clientBody.variables ?? clientBody
+        if (typeof vars === 'object' && vars !== null && Object.keys(vars).length > 0) {
+          const urlObj = new URL(config.targetUrl)
+          for (const [k, v] of Object.entries(vars)) {
+            if (v !== undefined && v !== null && v !== '') {
+              urlObj.searchParams.set(k, String(v))
+            }
+          }
+          finalTargetUrl = urlObj.toString()
+        }
+      } else {
+        fetchBody = JSON.stringify(clientBody)
+      }
     }
 
-    const targetRes = await fetch(config.targetUrl, {
+    const targetRes = await fetch(finalTargetUrl, {
       method: config.method || 'POST',
       headers: reqHeaders,
       body: fetchBody,

@@ -383,6 +383,10 @@ export default function ApiConfigsPage() {
           defaultVarsStr = JSON.stringify(varsObj, null, 2)
         }
       }
+    } else {
+      if (config.code.includes('TRANSKIP') || config.code.includes('TRANSKRIP') || config.name.includes('transkrip') || config.name.includes('transkip')) {
+        defaultVarsStr = JSON.stringify({ nim: '058055786', type: 'rpl' }, null, 2)
+      }
     }
 
     setTestVariables(defaultVarsStr)
