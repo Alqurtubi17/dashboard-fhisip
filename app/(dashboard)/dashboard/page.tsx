@@ -367,7 +367,7 @@ export default function DashboardPage() {
                 className="w-full sm:w-56 pl-3 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy font-semibold text-slate-700"
               >
                 <option value="ALL">Semua Program Studi (9 Prodi)</option>
-                <option value="IPEM">S1 Ilmu Pemerintahan (IPEM / 310)</option>
+                <option value="IPEM">S1 Ilmu Pemerintahan (IPEM)</option>
                 <option value="HKUM">S1 Ilmu Hukum (HKUM)</option>
                 <option value="IKOM">S1 Ilmu Komunikasi (IKOM)</option>
                 <option value="ADPU">S1 Administrasi Publik (ADPU)</option>

@@ -17,7 +17,6 @@ export type LkamItem = {
 }
 
 const LKAM_DATASET: LkamItem[] = [
-  // S1 Ilmu Pemerintahan (IPEM / 310) - Highlighted examples with varying SKS LKAM
   {
     id: 'lkam-ipem-1',
     nim: '043812901',
