@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Search, Monitor, User, Globe, Activity, RefreshCw } from 'lucide-react'
+import { Search, Monitor, User, Globe, Activity, RefreshCw, Trash2 } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 
 type AuditLogItem = {
@@ -61,6 +61,22 @@ export default function AuditLogPage() {
     setLoading(false)
   }
 
+  const handleResetLogs = async () => {
+    if (!confirm('Apakah Anda yakin ingin menghapus seluruh riwayat Audit Log?')) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/audit', { method: 'DELETE' })
+      if (res.ok) {
+        setLogs([])
+        setCurrentPage(1)
+      }
+    } catch (e) {
+      console.error('Failed to reset audit logs:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchLogs()
   }, [])
@@ -112,6 +128,13 @@ export default function AuditLogPage() {
           </div>
           <button onClick={fetchLogs} disabled={loading} className="btn-secondary flex items-center gap-2 text-sm">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+          <button
+            onClick={handleResetLogs}
+            disabled={loading}
+            className="px-3.5 py-2 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition text-sm font-semibold flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4 text-rose-600" /> Reset Log
           </button>
         </div>
       </div>

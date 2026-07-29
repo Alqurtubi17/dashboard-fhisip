@@ -18,3 +18,13 @@ export async function GET() {
   })
   return NextResponse.json(logs)
 }
+
+export async function DELETE() {
+  try {
+    await prisma.auditLog.deleteMany({})
+    return NextResponse.json({ success: true, message: 'Semua catatan audit log berhasil di-reset' })
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'Gagal mereset audit log' }, { status: 500 })
+  }
+}
+
