@@ -131,6 +131,11 @@ async function loadAllMatkulFromApi(): Promise<KebutuhanKelasItem[]> {
     const pNameRaw = item.program_studi?.nama_program_studi || 'FHISIP UT'
     const prodiCode = mapProdiCode(pCodeRaw, pNameRaw, rawKode)
 
+    // For Ilmu Komunikasi (IKOM): keep ONLY FSIK course codes, delete/exclude all others
+    if (prodiCode === 'IKOM' && !rawKode.startsWith('FSIK')) {
+      return
+    }
+
     let prodiNameFormatted = pNameRaw
     if (prodiCode === 'HKUM') prodiNameFormatted = 'S1 Ilmu Hukum'
     else if (prodiCode === 'IPEM') prodiNameFormatted = 'S1 Ilmu Pemerintahan'
