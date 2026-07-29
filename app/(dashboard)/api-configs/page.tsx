@@ -15,7 +15,6 @@ import {
   Code2,
   ShieldCheck,
   AlertCircle,
-  Database,
   Info,
   HelpCircle,
   Check,
@@ -68,7 +67,16 @@ type ConfirmState = {
 }
 
 export default function ApiConfigsPage() {
-  const [activeTab, setActiveTab] = useState<'configs' | 'providers'>('configs')
+  const [activeTab, setActiveTab] = useState<'configs' | 'providers' | 'settings'>('configs')
+  const [refreshInterval, setRefreshInterval] = useState<string>('3600000')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('dashboard_refresh_interval')
+      if (saved) setRefreshInterval(saved)
+    }
+  }, [])
+
   const [providers, setProviders] = useState<Provider[]>([])
   const [configs, setConfigs] = useState<ApiConfig[]>([])
   const [loading, setLoading] = useState(true)
@@ -390,12 +398,18 @@ export default function ApiConfigsPage() {
         defaultVarsStr = JSON.stringify({ noBilling: '20252043301851050021' }, null, 2)
       } else if (config.code.includes('BILLING_NIM') || config.name.includes('billing-nim') || config.code === 'D8P4LXB_AG3') {
         defaultVarsStr = JSON.stringify({ nim: '052109953' }, null, 2)
+      } else if (config.code.includes('YUDISIUM_NIM') || config.name.includes('yudisium-nim') || config.code === 'A_PMU_TWDU_MM') {
+        defaultVarsStr = JSON.stringify({ nim: '001446966' }, null, 2)
+      } else if (config.code.includes('SEMESTER') || config.name.includes('semester') || config.code === 'XFC_G2GUNK8') {
+        defaultVarsStr = JSON.stringify({ nim: '052109953' }, null, 2)
+      } else if (config.code.includes('SEMENTARA') || config.name.includes('sementara') || config.code === 'VF_C9HEOPI6') {
+        defaultVarsStr = JSON.stringify({ kodeFakultas: 3, limit: 50, page: 0 }, null, 2)
       } else if (config.code.includes('BILLING') || config.name.includes('billing')) {
-        defaultVarsStr = JSON.stringify({ masa: '20261', limit: 100, page: 0 }, null, 2)
+        defaultVarsStr = JSON.stringify({ masa: '20261', limit: 100, page: 1 }, null, 2)
       } else if (config.code.includes('MATKUL') || config.code.includes('MATAKULIAH') || config.name.includes('matkul') || config.name.includes('matakuliah')) {
-        defaultVarsStr = JSON.stringify({ kodeFakultas: 3, limit: 100, page: 0 }, null, 2)
+        defaultVarsStr = JSON.stringify({ kodeFakultas: 3, limit: 100, page: 1 }, null, 2)
       } else {
-        defaultVarsStr = JSON.stringify({ kodeFakultas: 3, limit: 500, page: 0 }, null, 2)
+        defaultVarsStr = JSON.stringify({ kodeFakultas: 3, limit: 50, page: 1 }, null, 2)
       }
     }
 
@@ -404,30 +418,6 @@ export default function ApiConfigsPage() {
     await executeProxyTest(config, defaultVarsStr)
   }
 
-  const [importing, setImporting] = useState(false)
-
-  const handleImportGithub = () => {
-    setConfirmModal({
-      open: true,
-      title: 'Sinkronkan Repo fhisiper/api',
-      message: 'Apakah Anda ingin menyinkronkan/mengimpor semua 48 Kueri API & GraphQL dari repository github.com/fhisiper/api ke database?',
-      confirmText: 'Ya, Impor Semua API',
-      danger: false,
-      onConfirm: async () => {
-        setConfirmModal((prev) => ({ ...prev, open: false }))
-        setImporting(true)
-        const res = await fetch('/api/api-configs/import-github', { method: 'POST' })
-        const json = await res.json()
-        setImporting(false)
-        if (res.ok) {
-          showToast(`Sukses! Berhasil mengimpor ${json.importedCount} API dari repo fhisiper/api`, 'success')
-          loadData()
-        } else {
-          showToast(json.error || 'Gagal mengimpor API dari GitHub', 'error')
-        }
-      },
-    })
-  }
 
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -474,19 +464,8 @@ export default function ApiConfigsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-800">Integrasi API & Login Penyedia</h1>
-          <p className="text-slate-500 text-sm">
-            Kelola otentikasi login penyedia API eksternal dan 48 tautan proxy kueri GraphQL / REST UT
-          </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleImportGithub}
-            disabled={importing}
-            className="btn-secondary text-xs sm:text-sm bg-slate-900 text-white hover:bg-slate-800 border-slate-800 shadow-sm hover:shadow-md transition-all"
-          >
-            <Database className={`w-4 h-4 text-amber-400 ${importing ? 'animate-spin' : ''}`} />
-            <span>{importing ? 'Mengimpor...' : 'Impor fhisiper/api'}</span>
-          </button>
           <button onClick={loadData} disabled={loading} className="btn-secondary text-xs sm:text-sm">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
@@ -518,6 +497,17 @@ export default function ApiConfigsPage() {
           >
             <KeyRound className="w-4 h-4" />
             <span>Akun Login Penyedia ({filteredProviders.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition ${
+              activeTab === 'settings'
+                ? 'border-ut-navy text-ut-navy'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            <span>Pengaturan Refresh API</span>
           </button>
         </div>
 
@@ -763,6 +753,60 @@ export default function ApiConfigsPage() {
                 onPageSizeChange={setConfPageSize}
               />
             )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: SETTINGS AUTO REFRESH */}
+      {activeTab === 'settings' && (
+        <div className="card p-6 max-w-3xl space-y-6">
+          <div>
+            <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-ut-blue" />
+              Pengaturan Interval Auto-Refresh API Dashboard
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Pilih interval waktu seberapa sering data statistik pada Dashboard diperbarui secara otomatis.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              Pilihan Interval Waktu:
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[
+                { label: '15 Menit', value: '900000', desc: 'Sangat Cepat' },
+                { label: '30 Menit', value: '1800000', desc: 'Cepat' },
+                { label: '1 Jam (Default)', value: '3600000', desc: 'Rekomendasi' },
+                { label: '2 Jam', value: '7200000', desc: 'Standar' },
+                { label: '6 Jam', value: '21600000', desc: 'Hemat Resource' },
+                { label: 'Manual (Matikan)', value: '0', desc: 'Tanpa Auto Refresh' },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setRefreshInterval(opt.value)
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('dashboard_refresh_interval', opt.value)
+                    }
+                    showToast(`Waktu auto-refresh API Dashboard diubah ke: ${opt.label}`, 'success')
+                  }}
+                  className={`p-4 rounded-2xl border text-left transition flex flex-col justify-between ${
+                    refreshInterval === opt.value
+                      ? 'border-ut-navy bg-ut-navy/5 text-ut-navy font-bold ring-2 ring-ut-navy/20'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-sm font-extrabold">{opt.label}</span>
+                    {refreshInterval === opt.value && <Check className="w-4 h-4 text-ut-navy stroke-[3]" />}
+                  </div>
+                  <span className="text-[11px] text-slate-500 mt-2 font-normal">{opt.desc}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
