@@ -53,7 +53,8 @@ function mapProdiCode(kodeProdi: string, namaProdi: string, kodeMatkul: string):
     return 'IKOM'
   }
 
-  if (pCode === '50' || pCode === '86' || mCode.startsWith('ADPU') || pName.includes('negara') || pName.includes('publik')) return 'ADPU'
+  // S1 Administrasi Publik (Active FSAP prefix or prodi 50/86)
+  if (pCode === '50' || pCode === '86' || mCode.startsWith('FSAP') || mCode.startsWith('ADPU') || pName.includes('negara') || pName.includes('publik')) return 'ADPU'
   if (pCode === '51' || pCode === '52' || mCode.startsWith('ADBI') || pName.includes('bisnis') || pName.includes('niaga')) return 'ADBI'
   if (pCode === '70' || mCode.startsWith('SOSI') || pName.includes('sosiologi')) return 'SOSI'
   if (pCode === '87' || pCode === '47' || pCode === '21' || mCode.startsWith('BING') || pName.includes('inggris')) return 'SING'
@@ -133,6 +134,11 @@ async function loadAllMatkulFromApi(): Promise<KebutuhanKelasItem[]> {
 
     // For Ilmu Komunikasi (IKOM): keep ONLY FSIK course codes, delete/exclude all others
     if (prodiCode === 'IKOM' && !rawKode.startsWith('FSIK')) {
+      return
+    }
+
+    // For Administrasi Publik (ADPU): keep ONLY FSAP course codes, delete/exclude all others
+    if (prodiCode === 'ADPU' && !rawKode.startsWith('FSAP')) {
       return
     }
 
