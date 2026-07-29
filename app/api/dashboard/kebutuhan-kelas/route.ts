@@ -55,11 +55,11 @@ function mapProdiCode(kodeProdi: string, namaProdi: string, kodeMatkul: string):
 
   // S1 Administrasi Publik (Active FSAP prefix or prodi 50/86)
   if (pCode === '50' || pCode === '86' || mCode.startsWith('FSAP') || mCode.startsWith('ADPU') || pName.includes('negara') || pName.includes('publik')) return 'ADPU'
-  if (pCode === '51' || pCode === '52' || mCode.startsWith('ADBI') || pName.includes('bisnis') || pName.includes('niaga')) return 'ADBI'
-  if (pCode === '70' || mCode.startsWith('SOSI') || pName.includes('sosiologi')) return 'SOSI'
-  if (pCode === '87' || pCode === '47' || pCode === '21' || mCode.startsWith('BING') || pName.includes('inggris')) return 'SING'
-  if (pCode === '310' || pCode === '43' || mCode.startsWith('PUST') || pName.includes('perpustakaan')) return 'PUS'
-  if (pCode === '312' || mCode.startsWith('PAJA') || pName.includes('pajak')) return 'PAJAK'
+  if (pCode === '51' || pCode === '52' || mCode.startsWith('FSAB') || mCode.startsWith('ADBI') || pName.includes('bisnis') || pName.includes('niaga')) return 'ADBI'
+  if (pCode === '70' || mCode.startsWith('FSSO') || mCode.startsWith('SOSI') || pName.includes('sosiologi')) return 'SOSI'
+  if (pCode === '87' || pCode === '47' || pCode === '21' || mCode.startsWith('FSSI') || mCode.startsWith('BING') || pName.includes('inggris')) return 'SING'
+  if (pCode === '310' || pCode === '43' || mCode.startsWith('FSIP') || mCode.startsWith('PUST') || pName.includes('perpustakaan')) return 'PUS'
+  if (pCode === '312' || mCode.startsWith('FSSP') || mCode.startsWith('PAJA') || pName.includes('pajak')) return 'PAJAK'
 
   return 'HKUM'
 }
@@ -132,15 +132,14 @@ async function loadAllMatkulFromApi(): Promise<KebutuhanKelasItem[]> {
     const pNameRaw = item.program_studi?.nama_program_studi || 'FHISIP UT'
     const prodiCode = mapProdiCode(pCodeRaw, pNameRaw, rawKode)
 
-    // For Ilmu Komunikasi (IKOM): keep ONLY FSIK course codes, delete/exclude all others
-    if (prodiCode === 'IKOM' && !rawKode.startsWith('FSIK')) {
-      return
-    }
-
-    // For Administrasi Publik (ADPU): keep ONLY FSAP course codes, delete/exclude all others
-    if (prodiCode === 'ADPU' && !rawKode.startsWith('FSAP')) {
-      return
-    }
+    // Filter kode mata kuliah sesuai prefix aktif per prodi
+    if (prodiCode === 'IKOM' && !rawKode.startsWith('FSIK')) return
+    if (prodiCode === 'ADPU' && !rawKode.startsWith('FSAP')) return
+    if (prodiCode === 'ADBI' && !rawKode.startsWith('FSAB')) return
+    if (prodiCode === 'SOSI' && !rawKode.startsWith('FSSO')) return
+    if (prodiCode === 'SING' && !rawKode.startsWith('FSSI')) return
+    if (prodiCode === 'PUS' && !rawKode.startsWith('FSIP')) return
+    if (prodiCode === 'PAJAK' && !rawKode.startsWith('FSSP')) return
 
     let prodiNameFormatted = pNameRaw
     if (prodiCode === 'HKUM') prodiNameFormatted = 'S1 Ilmu Hukum'
