@@ -11,7 +11,6 @@ import {
   Filter,
   X,
   Loader2,
-  Download,
 } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 
@@ -476,17 +475,6 @@ export default function MahasiswaPage() {
                 </div>
               )}
             </div>
-
-            {/* Fetch More from Server Button */}
-            <button
-              onClick={() => fetchStudentBatch(loadedPage + 1, 50)}
-              disabled={loadingMore}
-              title="Muat 50 data mahasiswa tambahan dari API Server SRS UT"
-              className="flex items-center gap-1.5 py-2 px-3 text-xs font-semibold text-ut-navy bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 rounded-xl transition disabled:opacity-50"
-            >
-              {loadingMore ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              <span>Muat +50 Data</span>
-            </button>
           </div>
         </div>
 
@@ -518,8 +506,7 @@ export default function MahasiswaPage() {
                   <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
                     <p className="font-medium text-slate-600">Tidak ada data mahasiswa yang sesuai.</p>
                     <p className="text-xs text-slate-400 mt-1">
-                      Coba periksa kata kunci / NIM atau klik tombol{' '}
-                      <span className="font-bold text-ut-navy">"Muat +50 Data"</span> di kanan atas untuk mengambil lebih banyak data dari server SRS UT.
+                      Coba periksa kata kunci / NIM atau sesuaikan filter pencarian Anda.
                     </p>
                   </td>
                 </tr>
