@@ -131,9 +131,9 @@ export default function Sidebar({
       </nav>
 
       {/* Sidebar Footer */}
-      <div className="p-4 border-t border-white/10 bg-black/20 text-center">
-        <p className="text-[11px] font-medium text-slate-300">Universitas Terbuka</p>
-        <p className="text-[10px] text-slate-400 mt-0.5">PTTJJ - Pendidikan Jarak Jauh</p>
+      <div className="py-2.5 px-4 border-t border-white/10 bg-black/20 text-center">
+        <p className="text-[11px] font-medium text-slate-300 leading-tight">Universitas Terbuka</p>
+        <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">PTTJJ - Pendidikan Jarak Jauh</p>
       </div>
     </aside>
   )
