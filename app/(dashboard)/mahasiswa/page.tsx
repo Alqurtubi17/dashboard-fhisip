@@ -22,6 +22,8 @@ type StudentItem = {
   semester: number | string
   status: string
   ipk: string
+  phone?: string
+  email?: string
 }
 
 const PRODI_LIST = [
@@ -102,6 +104,18 @@ export default function MahasiswaPage() {
             semester: item.info_ut?.semester || item.semester || 4,
             status: item.status_data_pribadi?.keterangan || item.status || 'Aktif',
             ipk: item.info_alih_kredit?.ipk_dp || item.ipk || '3.50',
+            phone:
+              item.info_kontak?.nomor_hp_mahasiswa && item.info_kontak.nomor_hp_mahasiswa !== '-'
+                ? item.info_kontak.nomor_hp_mahasiswa
+                : item.info_kontak?.nomor_telepon_mahasiswa && item.info_kontak.nomor_telepon_mahasiswa !== '-'
+                ? item.info_kontak.nomor_telepon_mahasiswa
+                : '-',
+            email:
+              item.info_kontak?.alamat_email_mahasiswa && item.info_kontak.alamat_email_mahasiswa !== '-'
+                ? item.info_kontak.alamat_email_mahasiswa
+                : item.info_kontak?.alamat_email_alternatif && item.info_kontak.alamat_email_alternatif !== '-'
+                ? item.info_kontak.alamat_email_alternatif
+                : '-',
           }))
 
           setStudentPool((prev) => {
@@ -153,6 +167,18 @@ export default function MahasiswaPage() {
               semester: data.semester || 4,
               status: data.keteranganStatusDp || 'Aktif',
               ipk: data.ipkDp || '3.50',
+              phone:
+                data.nomorHpMahasiswa && data.nomorHpMahasiswa !== '-'
+                  ? data.nomorHpMahasiswa
+                  : data.nomorTeleponMhs && data.nomorTeleponMhs !== '-'
+                  ? data.nomorTeleponMhs
+                  : '-',
+              email:
+                data.alamatEmailMhs && data.alamatEmailMhs !== '-'
+                  ? data.alamatEmailMhs
+                  : data.alamatEmailAlternatif && data.alamatEmailAlternatif !== '-'
+                  ? data.alamatEmailAlternatif
+                  : '-',
             }
             setStudentPool((prev) => [student, ...prev.filter((s) => s.nim !== student.nim)])
           }
@@ -212,7 +238,9 @@ export default function MahasiswaPage() {
         (s) =>
           s.nim.toLowerCase().includes(q) ||
           s.name.toLowerCase().includes(q) ||
-          s.prodi.toLowerCase().includes(q)
+          s.prodi.toLowerCase().includes(q) ||
+          (s.email && s.email.toLowerCase().includes(q)) ||
+          (s.phone && s.phone.toLowerCase().includes(q))
       )
     }
 
@@ -299,7 +327,7 @@ export default function MahasiswaPage() {
               )}
               <input
                 type="text"
-                placeholder="Cari NIM atau Nama..."
+                placeholder="Cari NIM, Nama, Email, HP..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy w-56"
@@ -464,11 +492,12 @@ export default function MahasiswaPage() {
 
         {/* Data Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[640px]">
+          <table className="w-full text-sm min-w-[700px]">
             <thead className="bg-slate-50 text-slate-500 text-left border-b border-slate-200">
               <tr>
                 <th className="px-5 py-3 font-semibold">NIM</th>
                 <th className="px-5 py-3 font-semibold">Nama Mahasiswa</th>
+                <th className="px-5 py-3 font-semibold">Kontak (HP / Email)</th>
                 <th className="px-5 py-3 font-semibold">Program Studi</th>
                 <th className="px-5 py-3 font-semibold">Semester</th>
                 <th className="px-5 py-3 font-semibold">IPK</th>
@@ -478,7 +507,7 @@ export default function MahasiswaPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-slate-400">
+                  <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
                     <Loader2 className="w-5 h-5 animate-spin inline-block mr-2 text-ut-navy" />
                     Memuat data mahasiswa live dari API SRS UT...
                   </td>
@@ -486,7 +515,7 @@ export default function MahasiswaPage() {
               )}
               {!loading && paginatedStudents.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-slate-400">
+                  <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
                     <p className="font-medium text-slate-600">Tidak ada data mahasiswa yang sesuai.</p>
                     <p className="text-xs text-slate-400 mt-1">
                       Coba periksa kata kunci / NIM atau klik tombol{' '}
@@ -500,6 +529,10 @@ export default function MahasiswaPage() {
                   <tr key={`${st.nim}-${idx}`} className="border-t border-slate-100 hover:bg-slate-50/50 transition">
                     <td className="px-5 py-3 font-mono text-xs font-bold text-ut-navy">{st.nim}</td>
                     <td className="px-5 py-3 font-medium text-slate-800">{st.name}</td>
+                    <td className="px-5 py-3 text-xs">
+                      <p className="font-mono text-slate-700">{st.phone || '-'}</p>
+                      <p className="text-slate-500 text-[11px] truncate max-w-[180px]">{st.email || '-'}</p>
+                    </td>
                     <td className="px-5 py-3 text-slate-600 text-xs">{st.prodi}</td>
                     <td className="px-5 py-3 text-slate-600">Sem {st.semester}</td>
                     <td className="px-5 py-3 font-semibold text-slate-700">{st.ipk}</td>
