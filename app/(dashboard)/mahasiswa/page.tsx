@@ -10,6 +10,8 @@ import {
   Search,
   Filter,
   X,
+  Loader2,
+  Download,
 } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 
@@ -36,13 +38,14 @@ const PRODI_LIST = [
 ]
 
 export default function MahasiswaPage() {
-  const [allStudents, setAllStudents] = useState<StudentItem[]>([])
-  const [totalCount, setTotalCount] = useState<number>(0)
+  const [studentPool, setStudentPool] = useState<StudentItem[]>([])
+  const [totalCount, setTotalCount] = useState<number>(407950)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [searchingNim, setSearchingNim] = useState(false)
+  const [loadedPage, setLoadedPage] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-  const [lastUpdated, setLastUpdated] = useState<number | null>(null)
-  const [fromCache, setFromCache] = useState(false)
 
   // Filter & Search state
   const [selectedProdi, setSelectedProdi] = useState<string>('ALL')
@@ -64,54 +67,11 @@ export default function MahasiswaPage() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Cache helpers
-  const getCacheKey = (page: number, size: number) => `mahasiswa_cache_p${page}_s${size}`
+  // Fetch batch of students from SRS API
+  const fetchStudentBatch = async (pageToFetch: number, limitToFetch = 50, isInitial = false) => {
+    if (isInitial) setLoading(true)
+    else setLoadingMore(true)
 
-  const getRefreshInterval = () => {
-    if (typeof window === 'undefined') return 6 * 60 * 60 * 1000
-    const saved = localStorage.getItem('dashboard_refresh_interval')
-    return saved !== null ? parseInt(saved, 10) : 6 * 60 * 60 * 1000 // default 6 jam
-  }
-
-  const readCache = (page: number, size: number): StudentItem[] | null => {
-    try {
-      const raw = sessionStorage.getItem(getCacheKey(page, size))
-      if (!raw) return null
-      const { data, timestamp } = JSON.parse(raw)
-      const ttl = getRefreshInterval()
-      if (ttl > 0 && Date.now() - timestamp > ttl) return null // expired
-      setLastUpdated(timestamp)
-      setFromCache(true)
-      return data
-    } catch {
-      return null
-    }
-  }
-
-  const writeCache = (page: number, size: number, data: StudentItem[]) => {
-    try {
-      const now = Date.now()
-      sessionStorage.setItem(getCacheKey(page, size), JSON.stringify({ data, timestamp: now }))
-      setLastUpdated(now)
-      setFromCache(false)
-    } catch {
-      // sessionStorage might be full, ignore
-    }
-  }
-
-  const fetchMahasiswa = async (page = currentPage, size = pageSize, forceRefresh = false) => {
-    // Try cache first
-    if (!forceRefresh) {
-      const cached = readCache(page, size)
-      if (cached) {
-        setAllStudents(cached)
-        setTotalCount(407950)
-        setLoading(false)
-        return
-      }
-    }
-
-    setLoading(true)
     try {
       const res = await fetch('/api/proxy/H_HSRE6NTWU', {
         method: 'POST',
@@ -119,8 +79,8 @@ export default function MahasiswaPage() {
         body: JSON.stringify({
           variables: {
             kodeFakultas: 3,
-            limit: size,
-            page: page - 1,
+            limit: limitToFetch,
+            page: pageToFetch,
           },
         }),
       })
@@ -143,24 +103,74 @@ export default function MahasiswaPage() {
             status: item.status_data_pribadi?.keterangan || item.status || 'Aktif',
             ipk: item.info_alih_kredit?.ipk_dp || item.ipk || '3.50',
           }))
-          setAllStudents(mapped)
-          writeCache(page, size, mapped)
+
+          setStudentPool((prev) => {
+            const existingNims = new Set(prev.map((s) => s.nim))
+            const newItems = mapped.filter((s) => !existingNims.has(s.nim))
+            return [...prev, ...newItems]
+          })
+          setLoadedPage(pageToFetch)
         }
       }
     } catch (e) {
       console.error('Failed to fetch live mahasiswa data:', e)
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }
 
+  // Initial load: fetch first batch (50 items)
   useEffect(() => {
-    fetchMahasiswa(currentPage, pageSize)
-  }, [currentPage, pageSize])
+    fetchStudentBatch(0, 50, true)
+  }, [])
 
-  // Client-side filter & search (on current page data from API)
+  // Direct NIM lookup via GraphQL if user enters 5+ digits
+  useEffect(() => {
+    const trimmed = searchQuery.trim()
+    const isNimLike = /^\d{5,9}$/.test(trimmed)
+    if (!isNimLike) return
+
+    const exists = studentPool.some((s) => s.nim === trimmed)
+    if (exists) return
+
+    const lookupNim = async () => {
+      setSearchingNim(true)
+      try {
+        const res = await fetch('/api/proxy/GET_PERAGAAN_DP_BY_PARAMS', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variables: { nim: trimmed } }),
+        })
+        if (res.ok) {
+          const json = await res.json()
+          const data = json.data?.getPeragaanDpByParams
+          if (data && data.nim) {
+            const student: StudentItem = {
+              nim: data.nim,
+              name: data.namaMahasiswa || 'Mahasiswa UT',
+              prodi: data.namaProgramStudi || 'FHISIP',
+              semester: data.semester || 4,
+              status: data.keteranganStatusDp || 'Aktif',
+              ipk: data.ipkDp || '3.50',
+            }
+            setStudentPool((prev) => [student, ...prev.filter((s) => s.nim !== student.nim)])
+          }
+        }
+      } catch (e) {
+        console.error('NIM direct lookup error:', e)
+      } finally {
+        setSearchingNim(false)
+      }
+    }
+
+    const timer = setTimeout(lookupNim, 400)
+    return () => clearTimeout(timer)
+  }, [searchQuery, studentPool])
+
+  // Filter student pool
   const filteredStudents = useMemo(() => {
-    let result = allStudents
+    let result = studentPool
 
     if (selectedProdi !== 'ALL') {
       const prodiLabel = PRODI_LIST.find((p) => p.code === selectedProdi)
@@ -201,22 +211,34 @@ export default function MahasiswaPage() {
       result = result.filter(
         (s) =>
           s.nim.toLowerCase().includes(q) ||
-          s.name.toLowerCase().includes(q)
+          s.name.toLowerCase().includes(q) ||
+          s.prodi.toLowerCase().includes(q)
       )
     }
 
     return result
-  }, [allStudents, selectedProdi, selectedStatus, selectedSemester, minIpk, searchQuery])
+  }, [studentPool, selectedProdi, selectedStatus, selectedSemester, minIpk, searchQuery])
 
-  const formatAge = (ts: number | null) => {
-    if (!ts) return ''
-    const diffMs = Date.now() - ts
-    const mins = Math.floor(diffMs / 60000)
-    const hours = Math.floor(mins / 60)
-    if (hours > 0) return `${hours} jam lalu`
-    if (mins > 0) return `${mins} menit lalu`
-    return 'baru saja'
+  // Reset page to 1 when filters or search change
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val)
+    setCurrentPage(1)
   }
+
+  const hasActiveFilters =
+    searchQuery.trim() !== '' ||
+    selectedProdi !== 'ALL' ||
+    selectedStatus !== 'ALL' ||
+    selectedSemester !== 'ALL' ||
+    minIpk !== 'ALL'
+
+  // Paginate filtered results
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredStudents.slice(start, start + pageSize)
+  }, [filteredStudents, currentPage, pageSize])
+
+  const totalFilteredCount = filteredStudents.length
 
   return (
     <div className="space-y-6">
@@ -232,7 +254,7 @@ export default function MahasiswaPage() {
           { label: 'Total Mahasiswa FHISIP', val: totalCount.toLocaleString('id-ID'), icon: Users, color: 'text-blue-600 bg-blue-50' },
           { label: 'Mahasiswa Aktif', val: Math.round(totalCount * 0.92).toLocaleString('id-ID'), icon: UserCheck, color: 'text-emerald-600 bg-emerald-50' },
           { label: 'Mahasiswa Alumni / Cuti', val: Math.round(totalCount * 0.08).toLocaleString('id-ID'), icon: Clock, color: 'text-amber-600 bg-amber-50' },
-          { label: 'Registrasi Aktif', val: Math.round(totalCount * 0.85).toLocaleString('id-ID'), icon: FileSpreadsheet, color: 'text-purple-600 bg-purple-50' },
+          { label: 'Terdaftar di Pool Data', val: studentPool.length.toLocaleString('id-ID') + ' mhs', icon: FileSpreadsheet, color: 'text-purple-600 bg-purple-50' },
         ].map((s) => (
           <div key={s.label} className="card p-5 flex items-center justify-between">
             <div>
@@ -260,7 +282,9 @@ export default function MahasiswaPage() {
             <p className="text-xs text-slate-400 mt-0.5">
               {loading
                 ? 'Memuat data...'
-                : `Halaman ${currentPage} · Menampilkan ${filteredStudents.length} data · Total ${totalCount.toLocaleString('id-ID')} mahasiswa FHISIP`}
+                : hasActiveFilters
+                ? `Hasil Filter / Pencarian: ${totalFilteredCount} mahasiswa ditemukan (dari ${studentPool.length} data termuat)`
+                : `Halaman ${currentPage} · Menampilkan ${paginatedStudents.length} data per halaman · Total ${totalCount.toLocaleString('id-ID')} mahasiswa FHISIP`}
             </p>
           </div>
 
@@ -268,17 +292,21 @@ export default function MahasiswaPage() {
           <div className="flex items-center gap-2">
             {/* Search bar */}
             <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              {searchingNim ? (
+                <Loader2 className="w-4 h-4 text-ut-blue animate-spin absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              ) : (
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              )}
               <input
                 type="text"
                 placeholder="Cari NIM atau Nama..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy w-52"
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-9 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy w-56"
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => handleSearchChange('')}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -317,6 +345,7 @@ export default function MahasiswaPage() {
                         setSelectedStatus('ALL')
                         setSelectedSemester('ALL')
                         setMinIpk('ALL')
+                        setCurrentPage(1)
                       }}
                       className="text-[10px] text-ut-blue font-semibold hover:underline"
                     >
@@ -329,7 +358,10 @@ export default function MahasiswaPage() {
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Program Studi</p>
                     <select
                       value={selectedProdi}
-                      onChange={(e) => setSelectedProdi(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedProdi(e.target.value)
+                        setCurrentPage(1)
+                      }}
                       className="w-full py-2 px-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy font-medium text-slate-700"
                     >
                       {PRODI_LIST.map((p) => (
@@ -345,7 +377,10 @@ export default function MahasiswaPage() {
                       {[{v:'ALL',l:'Semua'},{v:'aktif',l:'Aktif'},{v:'cuti',l:'Cuti'},{v:'alumni',l:'Alumni'}].map((s) => (
                         <button
                           key={s.v}
-                          onClick={() => setSelectedStatus(s.v)}
+                          onClick={() => {
+                            setSelectedStatus(s.v)
+                            setCurrentPage(1)
+                          }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${
                             selectedStatus === s.v
                               ? 'bg-ut-navy text-white border-ut-navy'
@@ -365,7 +400,10 @@ export default function MahasiswaPage() {
                       {['ALL',...Array.from({length:12},(_,i)=>String(i+1))].map((s) => (
                         <button
                           key={s}
-                          onClick={() => setSelectedSemester(s)}
+                          onClick={() => {
+                            setSelectedSemester(s)
+                            setCurrentPage(1)
+                          }}
                           className={`w-9 h-8 rounded-lg text-xs font-semibold border transition ${
                             selectedSemester === s
                               ? 'bg-ut-navy text-white border-ut-navy'
@@ -385,7 +423,10 @@ export default function MahasiswaPage() {
                       {[{v:'ALL',l:'Semua'},{v:'3.5',l:'≥ 3.50'},{v:'3.0',l:'≥ 3.00'},{v:'2.75',l:'≥ 2.75'},{v:'2.0',l:'≥ 2.00'}].map((ipk) => (
                         <button
                           key={ipk.v}
-                          onClick={() => setMinIpk(ipk.v)}
+                          onClick={() => {
+                            setMinIpk(ipk.v)
+                            setCurrentPage(1)
+                          }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${
                             minIpk === ipk.v
                               ? 'bg-ut-navy text-white border-ut-navy'
@@ -407,8 +448,18 @@ export default function MahasiswaPage() {
                 </div>
               )}
             </div>
-          </div>
 
+            {/* Fetch More from Server Button */}
+            <button
+              onClick={() => fetchStudentBatch(loadedPage + 1, 50)}
+              disabled={loadingMore}
+              title="Muat 50 data mahasiswa tambahan dari API Server SRS UT"
+              className="flex items-center gap-1.5 py-2 px-3 text-xs font-semibold text-ut-navy bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 rounded-xl transition disabled:opacity-50"
+            >
+              {loadingMore ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              <span>Muat +50 Data</span>
+            </button>
+          </div>
         </div>
 
         {/* Data Table */}
@@ -428,19 +479,24 @@ export default function MahasiswaPage() {
               {loading && (
                 <tr>
                   <td colSpan={6} className="px-5 py-8 text-center text-slate-400">
+                    <Loader2 className="w-5 h-5 animate-spin inline-block mr-2 text-ut-navy" />
                     Memuat data mahasiswa live dari API SRS UT...
                   </td>
                 </tr>
               )}
-              {!loading && filteredStudents.length === 0 && (
+              {!loading && paginatedStudents.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-5 py-8 text-center text-slate-400">
-                    Tidak ada data mahasiswa yang sesuai dengan filter / kata kunci pencarian.
+                    <p className="font-medium text-slate-600">Tidak ada data mahasiswa yang sesuai.</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Coba periksa kata kunci / NIM atau klik tombol{' '}
+                      <span className="font-bold text-ut-navy">"Muat +50 Data"</span> di kanan atas untuk mengambil lebih banyak data dari server SRS UT.
+                    </p>
                   </td>
                 </tr>
               )}
               {!loading &&
-                filteredStudents.map((st, idx) => (
+                paginatedStudents.map((st, idx) => (
                   <tr key={`${st.nim}-${idx}`} className="border-t border-slate-100 hover:bg-slate-50/50 transition">
                     <td className="px-5 py-3 font-mono text-xs font-bold text-ut-navy">{st.nim}</td>
                     <td className="px-5 py-3 font-medium text-slate-800">{st.name}</td>
@@ -466,20 +522,13 @@ export default function MahasiswaPage() {
           </table>
         </div>
 
-        {/* Pagination — server-side, total from API */}
+        {/* Pagination */}
         {!loading && (
           <Pagination
             currentPage={currentPage}
-            totalItems={totalCount}
+            totalItems={hasActiveFilters ? totalFilteredCount : totalCount}
             pageSize={pageSize}
-            onPageChange={(p) => {
-              setCurrentPage(p)
-              setSearchQuery('')
-              setSelectedProdi('ALL')
-              setSelectedStatus('ALL')
-              setSelectedSemester('ALL')
-              setMinIpk('ALL')
-            }}
+            onPageChange={(p) => setCurrentPage(p)}
             onPageSizeChange={(s) => {
               setPageSize(s)
               setCurrentPage(1)
