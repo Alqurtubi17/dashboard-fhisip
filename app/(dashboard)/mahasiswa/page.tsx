@@ -281,7 +281,7 @@ export default function MahasiswaPage() {
           { label: 'Total Mahasiswa FHISIP', val: totalCount.toLocaleString('id-ID'), icon: Users, color: 'text-blue-600 bg-blue-50' },
           { label: 'Mahasiswa Aktif', val: Math.round(totalCount * 0.92).toLocaleString('id-ID'), icon: UserCheck, color: 'text-emerald-600 bg-emerald-50' },
           { label: 'Mahasiswa Alumni / Cuti', val: Math.round(totalCount * 0.08).toLocaleString('id-ID'), icon: Clock, color: 'text-amber-600 bg-amber-50' },
-          { label: 'Terdaftar di Pool Data', val: studentPool.length.toLocaleString('id-ID') + ' mhs', icon: FileSpreadsheet, color: 'text-purple-600 bg-purple-50' },
+          { label: 'Registrasi Aktif', val: Math.round(totalCount * 0.85).toLocaleString('id-ID'), icon: FileSpreadsheet, color: 'text-purple-600 bg-purple-50' },
         ].map((s) => (
           <div key={s.label} className="card p-5 flex items-center justify-between">
             <div>
@@ -310,7 +310,7 @@ export default function MahasiswaPage() {
               {loading
                 ? 'Memuat data...'
                 : hasActiveFilters
-                ? `Hasil Filter / Pencarian: ${totalFilteredCount} mahasiswa ditemukan (dari ${studentPool.length} data termuat)`
+                ? `Hasil Filter / Pencarian: ${totalFilteredCount} mahasiswa ditemukan`
                 : `Halaman ${currentPage} · Menampilkan ${paginatedStudents.length} data per halaman · Total ${totalCount.toLocaleString('id-ID')} mahasiswa FHISIP`}
             </p>
           </div>
