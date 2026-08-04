@@ -68,8 +68,8 @@ export default function MahasiswaPage() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Fetch batch of students from SRS API
-  const fetchStudentBatch = async (pageToFetch: number, limitToFetch = 50, isInitial = false) => {
+  // Fetch batch of students from SRS API (optimal limit = 5000, ~3.9s response)
+  const fetchStudentBatch = async (pageToFetch: number, limitToFetch = 5000, isInitial = false) => {
     if (isInitial) setLoading(true)
     else setLoadingMore(true)
 
@@ -123,7 +123,11 @@ export default function MahasiswaPage() {
             return [...prev, ...newItems]
           })
           setLoadedPage(pageToFetch)
+          return rawData.length
         }
+      } else if (res.status === 504 && limitToFetch > 1000) {
+        // Fallback to limit 1000 if gateway times out
+        return await fetchStudentBatch(pageToFetch, 1000, isInitial)
       }
     } catch (e) {
       console.error('Failed to fetch live mahasiswa data:', e)
@@ -131,18 +135,21 @@ export default function MahasiswaPage() {
       setLoading(false)
       setLoadingMore(false)
     }
+    return 0
   }
 
-  // Initial load: fetch first batch (50 items)
+  // Initial load: fetch optimal 5,000 items directly from SRS API (< 4s)
   useEffect(() => {
-    fetchStudentBatch(0, 50, true)
+    fetchStudentBatch(0, 5000, true)
   }, [])
 
-  // Direct NIM lookup via GraphQL if user enters 5+ digits
+  // Direct search lookup via API: if user searches NIM, query server directly if not in pool
   useEffect(() => {
     const trimmed = searchQuery.trim()
-    const isNimLike = /^\d{5,9}$/.test(trimmed)
-    if (!isNimLike) return
+    if (!trimmed || trimmed.length < 3) return
+
+    const isNim = /^\d{3,9}$/.test(trimmed)
+    if (!isNim) return
 
     const exists = studentPool.some((s) => s.nim === trimmed)
     if (exists) return
@@ -189,7 +196,7 @@ export default function MahasiswaPage() {
       }
     }
 
-    const timer = setTimeout(lookupNim, 400)
+    const timer = setTimeout(lookupNim, 250)
     return () => clearTimeout(timer)
   }, [searchQuery, studentPool])
 
@@ -308,10 +315,10 @@ export default function MahasiswaPage() {
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               {loading
-                ? 'Memuat data...'
+                ? 'Memuat data mahasiswa live dari API SRS UT...'
                 : hasActiveFilters
                 ? `Hasil Filter / Pencarian: ${totalFilteredCount} mahasiswa ditemukan`
-                : `Halaman ${currentPage} · Menampilkan ${paginatedStudents.length} data per halaman · Total ${totalCount.toLocaleString('id-ID')} mahasiswa FHISIP`}
+                : `Halaman ${currentPage} · Menampilkan ${paginatedStudents.length} data per halaman · Total ${totalFilteredCount.toLocaleString('id-ID')} data mahasiswa`}
             </p>
           </div>
 
@@ -546,7 +553,7 @@ export default function MahasiswaPage() {
         {!loading && (
           <Pagination
             currentPage={currentPage}
-            totalItems={hasActiveFilters ? totalFilteredCount : totalCount}
+            totalItems={totalFilteredCount}
             pageSize={pageSize}
             onPageChange={(p) => setCurrentPage(p)}
             onPageSizeChange={(s) => {
