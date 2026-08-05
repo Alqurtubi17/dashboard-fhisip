@@ -43,9 +43,8 @@ const MENUS: {
     sort: 2,
     children: [
       { name: 'Data Mahasiswa', icon: 'Users', url: '/mahasiswa', permissionKey: 'mahasiswa.view', sort: 1 },
-      { name: 'Registrasi', icon: 'ClipboardList', url: '/mahasiswa/registrasi', permissionKey: 'akademik.view', sort: 2 },
-      { name: 'KRS', icon: 'FileText', url: '/mahasiswa/krs', permissionKey: 'akademik.view', sort: 3 },
-      { name: 'KHS', icon: 'FileText', url: '/mahasiswa/khs', permissionKey: 'akademik.view', sort: 4 },
+      { name: 'Registrasi Mata Kuliah', icon: 'ClipboardList', url: '/mahasiswa/registrasi', permissionKey: 'akademik.view', sort: 2 },
+      { name: 'Lembar LKAM Digital', icon: 'FileText', url: '/mahasiswa/lkam', permissionKey: 'akademik.view', sort: 3 },
     ],
   },
   {
@@ -54,9 +53,10 @@ const MENUS: {
     permissionKey: 'akademik.view',
     sort: 3,
     children: [
-      { name: 'Jadwal', icon: 'Calendar', url: '/akademik/jadwal', permissionKey: 'akademik.view', sort: 1 },
-      { name: 'Nilai', icon: 'Star', url: '/akademik/nilai', permissionKey: 'akademik.view', sort: 2 },
-      { name: 'Kurikulum', icon: 'BookMarked', url: '/akademik/kurikulum', permissionKey: 'akademik.view', sort: 3 },
+      { name: 'Jadwal Tutorial & Ujian', icon: 'Calendar', url: '/akademik/jadwal', permissionKey: 'akademik.view', sort: 1 },
+      { name: 'Nilai & Hasil Ujian', icon: 'Star', url: '/akademik/nilai', permissionKey: 'akademik.view', sort: 2 },
+      { name: 'TAP & Karya Ilmiah (Karil)', icon: 'Award', url: '/akademik/tap-karil', permissionKey: 'akademik.view', sort: 3 },
+      { name: 'Kurikulum & Katalog UT', icon: 'BookMarked', url: '/akademik/kurikulum', permissionKey: 'akademik.view', sort: 4 },
     ],
   },
   {
@@ -65,10 +65,9 @@ const MENUS: {
     permissionKey: 'kemahasiswaan.view',
     sort: 4,
     children: [
-      { name: 'Beasiswa', icon: 'Wallet', url: '/kemahasiswaan/beasiswa', permissionKey: 'kemahasiswaan.view', sort: 1 },
-      { name: 'Prestasi', icon: 'Trophy', url: '/kemahasiswaan/prestasi', permissionKey: 'kemahasiswaan.view', sort: 2 },
-      { name: 'Organisasi', icon: 'Users2', url: '/kemahasiswaan/organisasi', permissionKey: 'kemahasiswaan.view', sort: 3 },
-      { name: 'Alumni', icon: 'UserCheck', url: '/kemahasiswaan/alumni', permissionKey: 'kemahasiswaan.view', sort: 4 },
+      { name: 'Prestasi SIMKATMAWA', icon: 'Trophy', url: '/kemahasiswaan/prestasi', permissionKey: 'kemahasiswaan.view', sort: 1 },
+      { name: 'Organisasi Kemahasiswaan', icon: 'Users2', url: '/kemahasiswaan/organisasi', permissionKey: 'kemahasiswaan.view', sort: 2 },
+      { name: 'Alumni & Tracer Study', icon: 'UserCheck', url: '/kemahasiswaan/alumni', permissionKey: 'kemahasiswaan.view', sort: 3 },
     ],
   },
   { name: 'Laporan', icon: 'FileBarChart', url: '/laporan', permissionKey: 'laporan.view', sort: 5 },
