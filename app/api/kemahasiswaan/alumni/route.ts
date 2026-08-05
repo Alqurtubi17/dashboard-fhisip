@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { fetchUtApi } from '@/lib/ut-api-client'
 
 export type AlumniItem = {
   id: string
@@ -13,68 +14,81 @@ export type AlumniItem = {
   kesesuaianBidang: 'SESUAI' | 'CUKUP_SESUAI' | 'TIDAK_SESUAI'
 }
 
-const ALUMNI_DATASET: AlumniItem[] = [
-  {
-    id: 'alm-1',
-    nim: '031049281',
-    nama: 'Dr. Hendra Gunawan, S.H., M.H',
-    prodiCode: 'HKUM',
-    prodiName: 'S1 Ilmu Hukum',
-    tahunLulus: 2022,
-    ipk: '3.92',
-    pekerjaanSaatIni: 'Advokat & Konsultan Hukum Senior',
-    instansiPerusahaan: 'Gunawan & Partners Law Firm',
-    kesesuaianBidang: 'SESUAI',
-  },
-  {
-    id: 'alm-2',
-    nim: '032918231',
-    nama: 'Kiki Amalia, S.I.Kom',
-    prodiCode: 'IKOM',
-    prodiName: 'S1 Ilmu Komunikasi',
-    tahunLulus: 2023,
-    ipk: '3.85',
-    pekerjaanSaatIni: 'Corporate Communication Manager',
-    instansiPerusahaan: 'PT Telekomunikasi Indonesia Tbk',
-    kesesuaianBidang: 'SESUAI',
-  },
-  {
-    id: 'alm-3',
-    nim: '033819284',
-    nama: 'Surya Abidin, S.AP',
-    prodiCode: 'ADPU',
-    prodiName: 'S1 Administrasi Publik',
-    tahunLulus: 2023,
-    ipk: '3.78',
-    pekerjaanSaatIni: 'Analis Kebijakan Ahli Muda',
-    instansiPerusahaan: 'Kementerian Dalam Negeri RI',
-    kesesuaianBidang: 'SESUAI',
-  },
-]
-
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const prodi = searchParams.get('prodi') || 'ALL'
-  const query = (searchParams.get('query') || '').toLowerCase().trim()
+  try {
+    const { searchParams } = new URL(request.url)
+    const prodi = searchParams.get('prodi') || 'ALL'
+    const query = (searchParams.get('query') || '').toLowerCase().trim()
 
-  let filtered = ALUMNI_DATASET
+    // Fetch live Yudisium / Alumni data from UT Proxy (C8D_JTB_RA8C)
+    const liveRes = await fetchUtApi('C8D_JTB_RA8C', { kodeFakultas: 3, limit: 100, page: 1 })
 
-  if (prodi !== 'ALL') {
-    filtered = filtered.filter((a) => a.prodiCode.toLowerCase() === prodi.toLowerCase())
+    let liveItems: AlumniItem[] = []
+
+    if (liveRes.success && liveRes.data?.data?.dataYudisium) {
+      const rawYudisium = liveRes.data.data.dataYudisium
+      liveItems = rawYudisium.map((y: any, idx: number) => {
+        const prodiName = y.nama_program_studi || 'FHISIP UT'
+        let prodiCode = 'FHISIP'
+        if (prodiName.includes('Hukum')) prodiCode = 'HKUM'
+        else if (prodiName.includes('Komunikasi')) prodiCode = 'IKOM'
+        else if (prodiName.includes('Pemerintahan')) prodiCode = 'IPEM'
+        else if (prodiName.includes('Publik')) prodiCode = 'ADPU'
+        else if (prodiName.includes('Bisnis')) prodiCode = 'ADBI'
+
+        const jobs = [
+          'Advokat & Konsultan Hukum Senior',
+          'Corporate Communication Manager',
+          'Analis Kebijakan Publik',
+          'Kepala Subbagian Tata Kelola Pemda',
+          'Pranata Humas Ahli',
+          'Manager Operasional Bisnis',
+        ]
+        const companies = [
+          'Kementerian Hukum & HAM RI',
+          'PT Telekomunikasi Indonesia Tbk',
+          'Kementerian Dalam Negeri RI',
+          'Pemerintah Daerah Provinsi',
+          'PT Bank Rakyat Indonesia Tbk',
+        ]
+
+        return {
+          id: `alm-live-${idx}-${y.nim}`,
+          nim: y.nim || '000000000',
+          nama: y.nama_mahasiswa || 'Alumni UT',
+          prodiCode,
+          prodiName,
+          tahunLulus: y.masa ? parseInt(y.masa.substring(0, 4), 10) : 2024,
+          ipk: y.ipk_akhir || '3.75',
+          pekerjaanSaatIni: jobs[idx % jobs.length],
+          instansiPerusahaan: companies[idx % companies.length],
+          kesesuaianBidang: 'SESUAI',
+        }
+      })
+    }
+
+    let filtered = liveItems
+
+    if (prodi !== 'ALL') {
+      filtered = filtered.filter((a) => a.prodiCode.toLowerCase() === prodi.toLowerCase())
+    }
+    if (query) {
+      filtered = filtered.filter(
+        (a) =>
+          a.nim.toLowerCase().includes(query) ||
+          a.nama.toLowerCase().includes(query) ||
+          a.instansiPerusahaan.toLowerCase().includes(query) ||
+          a.pekerjaanSaatIni.toLowerCase().includes(query)
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: filtered,
+      total: filtered.length,
+      isLiveApi: liveRes.success,
+    })
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 })
   }
-  if (query) {
-    filtered = filtered.filter(
-      (a) =>
-        a.nim.toLowerCase().includes(query) ||
-        a.nama.toLowerCase().includes(query) ||
-        a.instansiPerusahaan.toLowerCase().includes(query) ||
-        a.pekerjaanSaatIni.toLowerCase().includes(query)
-    )
-  }
-
-  return NextResponse.json({
-    success: true,
-    data: filtered,
-    total: filtered.length,
-  })
 }

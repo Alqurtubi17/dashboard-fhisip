@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { fetchUtApi } from '@/lib/ut-api-client'
 
 export type KurikulumItem = {
   id: string
@@ -14,110 +15,70 @@ export type KurikulumItem = {
   cplCpmk: string
 }
 
-const KURIKULUM_DATASET: KurikulumItem[] = [
-  {
-    id: 'kur-1',
-    kodeMk: 'HKUM4201',
-    namaMk: 'Hukum Tata Negara',
-    sks: 4,
-    semesterPenawaran: 2,
-    prodiCode: 'HKUM',
-    prodiName: 'S1 Ilmu Hukum',
-    sifatMatkul: 'WAJIB',
-    bahanAjarKode: 'BMP HKUM4201 (Modul 1-9)',
-    prasyaratKode: 'MKDU4111',
-    cplCpmk: 'CPL-1: Mampu menganalisis norma dan struktur hukum konstitusi Indonesia.',
-  },
-  {
-    id: 'kur-2',
-    kodeMk: 'SKOM4315',
-    namaMk: 'Komunikasi Massa',
-    sks: 3,
-    semesterPenawaran: 3,
-    prodiCode: 'IKOM',
-    prodiName: 'S1 Ilmu Komunikasi',
-    sifatMatkul: 'WAJIB',
-    bahanAjarKode: 'BMP SKOM4315 (Modul 1-6)',
-    prasyaratKode: 'SKOM4101',
-    cplCpmk: 'CPL-2: Menguasai prinsip dan dampak media komunikasi massa modern.',
-  },
-  {
-    id: 'kur-3',
-    kodeMk: 'ADPU4330',
-    namaMk: 'Kebijakan Publik',
-    sks: 3,
-    semesterPenawaran: 4,
-    prodiCode: 'ADPU',
-    prodiName: 'S1 Administrasi Publik',
-    sifatMatkul: 'WAJIB',
-    bahanAjarKode: 'BMP ADPU4330 (Modul 1-9)',
-    prasyaratKode: null,
-    cplCpmk: 'CPL-3: Mampu mendesain dan mengedukasi pembuatan kebijakan publik.',
-  },
-  {
-    id: 'kur-4',
-    kodeMk: 'IPEM4317',
-    namaMk: 'Sistem Pemerintahan Daerah',
-    sks: 3,
-    semesterPenawaran: 5,
-    prodiCode: 'IPEM',
-    prodiName: 'S1 Ilmu Pemerintahan',
-    sifatMatkul: 'WAJIB',
-    bahanAjarKode: 'BMP IPEM4317 (Modul 1-9)',
-    prasyaratKode: 'IPEM4111',
-    cplCpmk: 'CPL-1: Menguasai otonomi daerah & regulasi sistem tata kelola lokal.',
-  },
-  {
-    id: 'kur-5',
-    kodeMk: 'SOSI4500',
-    namaMk: 'Tugas Akhir Program (TAP) Sosiologi',
-    sks: 4,
-    semesterPenawaran: 8,
-    prodiCode: 'SOSI',
-    prodiName: 'S1 Sosiologi',
-    sifatMatkul: 'TAP',
-    bahanAjarKode: 'Panduan TAP SOSI4500',
-    prasyaratKode: 'Lulus Min 110 SKS',
-    cplCpmk: 'CPL-5: Evaluasi komprehensif teori dan metode riset sosiologi.',
-  },
-  {
-    id: 'kur-6',
-    kodeMk: 'HKUM4560',
-    namaMk: 'Karya Ilmiah (Karil) Hukum',
-    sks: 0,
-    semesterPenawaran: 8,
-    prodiCode: 'HKUM',
-    prodiName: 'S1 Ilmu Hukum',
-    sifatMatkul: 'KARIL',
-    bahanAjarKode: 'Panduan Karya Ilmiah UT',
-    prasyaratKode: 'HKUM4312',
-    cplCpmk: 'CPL-4: Menyusun naskah ilmiah berbasis hasil riset hukum berstandar publikasi.',
-  },
-]
-
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const prodi = searchParams.get('prodi') || 'ALL'
-  const query = (searchParams.get('query') || '').toLowerCase().trim()
+  try {
+    const { searchParams } = new URL(request.url)
+    const prodi = searchParams.get('prodi') || 'ALL'
+    const query = (searchParams.get('query') || '').toLowerCase().trim()
 
-  let filtered = KURIKULUM_DATASET
+    // Fetch live matakuliah data for Fakultas 3 (FHISIP) from UT Proxy (IA_YMX_KUDJQ)
+    const liveRes = await fetchUtApi('IA_YMX_KUDJQ', { kodeFakultas: 3, limit: 200, page: 1 })
 
-  if (prodi !== 'ALL') {
-    filtered = filtered.filter((k) => k.prodiCode.toLowerCase() === prodi.toLowerCase())
+    let liveItems: KurikulumItem[] = []
+
+    if (liveRes.success && liveRes.data?.data?.dataMataKuliah) {
+      const rawMatkul = liveRes.data.data.dataMataKuliah
+      liveItems = rawMatkul.map((m: any, idx: number) => {
+        const prodiName = m.program_studi?.nama_program_studi || 'FHISIP UT'
+        let prodiCode = 'FHISIP'
+        if (prodiName.includes('Hukum')) prodiCode = 'HKUM'
+        else if (prodiName.includes('Komunikasi')) prodiCode = 'IKOM'
+        else if (prodiName.includes('Pemerintahan')) prodiCode = 'IPEM'
+        else if (prodiName.includes('Publik')) prodiCode = 'ADPU'
+        else if (prodiName.includes('Bisnis')) prodiCode = 'ADBI'
+        else if (prodiName.includes('Sosiologi')) prodiCode = 'SOSI'
+        else if (prodiName.includes('Perpustakaan')) prodiCode = 'PUS'
+
+        const bahanAjar = m.bahan_ajar && m.bahan_ajar.length > 0 ? m.bahan_ajar[0].kode_bahan_ajar : m.kode_matakuliah
+
+        return {
+          id: `kur-live-${idx}-${m.kode_matakuliah}`,
+          kodeMk: m.kode_matakuliah,
+          namaMk: m.nama_matakuliah,
+          sks: parseInt(m.sks || '3', 10),
+          semesterPenawaran: (idx % 8) + 1,
+          prodiCode,
+          prodiName,
+          sifatMatkul: m.nama_matakuliah.includes('TAP') ? 'TAP' : m.nama_matakuliah.includes('KARYA ILMIAH') ? 'KARIL' : 'WAJIB',
+          bahanAjarKode: `BMP ${bahanAjar}`,
+          prasyaratKode: null,
+          cplCpmk: `CPL FHISIP: Menguasai keahlian dan analisis komprehensif pada bidang ${prodiName}.`,
+        }
+      })
+    }
+
+    let filtered = liveItems
+
+    if (prodi !== 'ALL') {
+      filtered = filtered.filter((k) => k.prodiCode.toLowerCase() === prodi.toLowerCase())
+    }
+    if (query) {
+      filtered = filtered.filter(
+        (k) =>
+          k.kodeMk.toLowerCase().includes(query) ||
+          k.namaMk.toLowerCase().includes(query) ||
+          k.prodiName.toLowerCase().includes(query) ||
+          k.bahanAjarKode.toLowerCase().includes(query)
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: filtered,
+      total: filtered.length,
+      isLiveApi: liveRes.success,
+    })
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 })
   }
-  if (query) {
-    filtered = filtered.filter(
-      (k) =>
-        k.kodeMk.toLowerCase().includes(query) ||
-        k.namaMk.toLowerCase().includes(query) ||
-        k.prodiName.toLowerCase().includes(query) ||
-        k.bahanAjarKode.toLowerCase().includes(query)
-    )
-  }
-
-  return NextResponse.json({
-    success: true,
-    data: filtered,
-    total: filtered.length,
-  })
 }

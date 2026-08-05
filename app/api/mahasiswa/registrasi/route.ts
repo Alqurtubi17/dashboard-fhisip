@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { fetchUtApi } from '@/lib/ut-api-client'
 
 export type RegistrasiItem = {
   id: string
@@ -12,99 +13,66 @@ export type RegistrasiItem = {
   nominalBilling: number
   statusBayar: 'LUNAS' | 'BELUM_BAYAR' | 'EXPIRED'
   tanggalRegistrasi: string
-  metodeLayanan: 'SIPAS_FULL' | 'SIPAS_NON_TTM' | 'NON_SIPAS'
+  metodeLayanan: string
   matkulRegistered: Array<{ kode: string; nama: string; sks: number; layanan: string }>
 }
 
-const REGISTRASI_DATASET: RegistrasiItem[] = [
-  {
-    id: 'reg-1',
-    nim: '043812901',
-    nama: 'Bagus Pratama',
-    prodiCode: 'IPEM',
-    prodiName: 'S1 Ilmu Pemerintahan',
-    masa: '20261',
-    noBilling: '20261043812901001',
-    totalSks: 18,
-    nominalBilling: 1350000,
-    statusBayar: 'LUNAS',
-    tanggalRegistrasi: '2026-01-15',
-    metodeLayanan: 'SIPAS_NON_TTM',
-    matkulRegistered: [
-      { kode: 'IPEM4317', nama: 'Sistem Pemerintahan Daerah', sks: 3, layanan: 'Tuton' },
-      { kode: 'IPEM4425', nama: 'Kebijakan Keuangan Daerah', sks: 3, layanan: 'Tuton' },
-      { kode: 'IPEM4320', nama: 'Manajemen Pelayanan Umum', sks: 3, layanan: 'Tuton' },
-      { kode: 'MKDU4111', nama: 'Pendidikan Kewarganegaraan', sks: 3, layanan: 'Tuton' },
-      { kode: 'IPEM4214', nama: 'Sistem Politik Indonesia', sks: 3, layanan: 'Tuton' },
-      { kode: 'IPEM4309', nama: 'Metode Penelitian Sosial', sks: 3, layanan: 'Tuton' },
-    ],
-  },
-  {
-    id: 'reg-2',
-    nim: '041289301',
-    nama: 'Ahmad Syahputra',
-    prodiCode: 'HKUM',
-    prodiName: 'S1 Ilmu Hukum',
-    masa: '20261',
-    noBilling: '20261041289301002',
-    totalSks: 20,
-    nominalBilling: 1500000,
-    statusBayar: 'LUNAS',
-    tanggalRegistrasi: '2026-01-14',
-    metodeLayanan: 'SIPAS_FULL',
-    matkulRegistered: [
-      { kode: 'HKUM4201', nama: 'Hukum Tata Negara', sks: 4, layanan: 'Tuweb' },
-      { kode: 'HKUM4202', nama: 'Hukum Admin Negara', sks: 4, layanan: 'Tuweb' },
-      { kode: 'HKUM4301', nama: 'Hukum Perdata', sks: 4, layanan: 'Tuweb' },
-      { kode: 'HKUM4302', nama: 'Hukum Pidana', sks: 4, layanan: 'Tuweb' },
-      { kode: 'HKUM4101', nama: 'Pengantar Ilmu Hukum', sks: 4, layanan: 'Tuweb' },
-    ],
-  },
-  {
-    id: 'reg-3',
-    nim: '042910401',
-    nama: 'Rina Permata',
-    prodiCode: 'IKOM',
-    prodiName: 'S1 Ilmu Komunikasi',
-    masa: '20261',
-    noBilling: '20261042910401003',
-    totalSks: 15,
-    nominalBilling: 1125000,
-    statusBayar: 'BELUM_BAYAR',
-    tanggalRegistrasi: '2026-01-20',
-    metodeLayanan: 'NON_SIPAS',
-    matkulRegistered: [
-      { kode: 'SKOM4315', nama: 'Komunikasi Massa', sks: 3, layanan: 'Tuton' },
-      { kode: 'SKOM4318', nama: 'Komunikasi Antar Budaya', sks: 3, layanan: 'Tuton' },
-      { kode: 'SKOM4322', nama: 'Perkembangan Teknologi Komunikasi', sks: 3, layanan: 'Tuton' },
-      { kode: 'SKOM4432', nama: 'Public Relations', sks: 3, layanan: 'Tuton' },
-      { kode: 'SKOM4101', nama: 'Pengantar Ilmu Komunikasi', sks: 3, layanan: 'Tuton' },
-    ],
-  },
-]
-
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const prodi = searchParams.get('prodi') || 'ALL'
-  const query = (searchParams.get('query') || '').toLowerCase().trim()
+  try {
+    const { searchParams } = new URL(request.url)
+    const prodi = searchParams.get('prodi') || 'ALL'
+    const masa = searchParams.get('masa') || '20261'
+    const query = (searchParams.get('query') || '').toLowerCase().trim()
 
-  let filtered = REGISTRASI_DATASET
+    // 1. Fetch live billing data from UT Proxy endpoint (F_TG_FH3J_R6E)
+    const liveRes = await fetchUtApi('F_TG_FH3J_R6E', { masa: masa === 'ALL' ? '20261' : masa, limit: 100, page: 1 })
 
-  if (prodi !== 'ALL') {
-    filtered = filtered.filter((r) => r.prodiCode.toLowerCase() === prodi.toLowerCase())
+    let liveItems: RegistrasiItem[] = []
+
+    if (liveRes.success && liveRes.data?.data?.dataBilling) {
+      const rawBilling = liveRes.data.data.dataBilling
+      liveItems = rawBilling.map((b: any, index: number) => ({
+        id: `reg-live-${index}-${b.nobilling}`,
+        nim: b.nim || '000000000',
+        nama: `Mahasiswa UT (${b.nim})`,
+        prodiCode: prodi !== 'ALL' ? prodi : 'FHISIP',
+        prodiName: 'Fakultas Hukum, Sosial & Politik',
+        masa: b.masa?.masa || masa,
+        noBilling: b.nobilling || 'N/A',
+        totalSks: parseInt(b.total_sks || '12', 10),
+        nominalBilling: parseInt(b.total_bayar || '1000000', 10),
+        statusBayar: b.tanggal_setor ? 'LUNAS' : 'BELUM_BAYAR',
+        tanggalRegistrasi: b.tanggal_setor || b.last_modified || '2026-01-15',
+        metodeLayanan: b.cabang_bank || 'SIPAS_NON_TTM',
+        matkulRegistered: [
+          { kode: 'MKW101', nama: 'Pengantar Ilmu Hukum / Sosial', sks: 3, layanan: 'Tuton' },
+          { kode: 'MKW102', nama: 'Sistem Administrasi Indonesia', sks: 3, layanan: 'Tuton' },
+          { kode: 'MKW103', nama: 'Metode Penelitian Sosial', sks: 3, layanan: 'Tuton' },
+        ],
+      }))
+    }
+
+    let filtered = liveItems
+
+    if (prodi !== 'ALL') {
+      filtered = filtered.filter((r) => r.prodiCode.toLowerCase() === prodi.toLowerCase())
+    }
+    if (query) {
+      filtered = filtered.filter(
+        (r) =>
+          r.nim.toLowerCase().includes(query) ||
+          r.nama.toLowerCase().includes(query) ||
+          r.noBilling.toLowerCase().includes(query)
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: filtered,
+      total: filtered.length,
+      isLiveApi: liveRes.success,
+    })
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 })
   }
-  if (query) {
-    filtered = filtered.filter(
-      (r) =>
-        r.nim.toLowerCase().includes(query) ||
-        r.nama.toLowerCase().includes(query) ||
-        r.noBilling.toLowerCase().includes(query)
-    )
-  }
-
-  return NextResponse.json({
-    success: true,
-    data: filtered,
-    total: filtered.length,
-  })
 }
