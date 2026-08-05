@@ -36,46 +36,14 @@ const MENUS: {
   children?: { name: string; icon: string; url: string; permissionKey?: string; sort: number }[]
 }[] = [
   { name: 'Dashboard', icon: 'LayoutDashboard', url: '/dashboard', permissionKey: 'dashboard.view', sort: 1 },
-  {
-    name: 'Mahasiswa',
-    icon: 'GraduationCap',
-    permissionKey: 'mahasiswa.view',
-    sort: 2,
-    children: [
-      { name: 'Data Mahasiswa', icon: 'Users', url: '/mahasiswa', permissionKey: 'mahasiswa.view', sort: 1 },
-      { name: 'Registrasi Mata Kuliah', icon: 'ClipboardList', url: '/mahasiswa/registrasi', permissionKey: 'akademik.view', sort: 2 },
-      { name: 'Lembar LKAM Digital', icon: 'FileText', url: '/mahasiswa/lkam', permissionKey: 'akademik.view', sort: 3 },
-    ],
-  },
-  {
-    name: 'Akademik',
-    icon: 'BookOpen',
-    permissionKey: 'akademik.view',
-    sort: 3,
-    children: [
-      { name: 'Jadwal Tutorial & Ujian', icon: 'Calendar', url: '/akademik/jadwal', permissionKey: 'akademik.view', sort: 1 },
-      { name: 'Nilai & Hasil Ujian', icon: 'Star', url: '/akademik/nilai', permissionKey: 'akademik.view', sort: 2 },
-      { name: 'TAP & Karya Ilmiah (Karil)', icon: 'Award', url: '/akademik/tap-karil', permissionKey: 'akademik.view', sort: 3 },
-      { name: 'Kurikulum & Katalog UT', icon: 'BookMarked', url: '/akademik/kurikulum', permissionKey: 'akademik.view', sort: 4 },
-    ],
-  },
-  {
-    name: 'Kemahasiswaan',
-    icon: 'Award',
-    permissionKey: 'kemahasiswaan.view',
-    sort: 4,
-    children: [
-      { name: 'Prestasi SIMKATMAWA', icon: 'Trophy', url: '/kemahasiswaan/prestasi', permissionKey: 'kemahasiswaan.view', sort: 1 },
-      { name: 'Organisasi Kemahasiswaan', icon: 'Users2', url: '/kemahasiswaan/organisasi', permissionKey: 'kemahasiswaan.view', sort: 2 },
-      { name: 'Alumni & Tracer Study', icon: 'UserCheck', url: '/kemahasiswaan/alumni', permissionKey: 'kemahasiswaan.view', sort: 3 },
-    ],
-  },
-  { name: 'Laporan', icon: 'FileBarChart', url: '/laporan', permissionKey: 'laporan.view', sort: 5 },
+  { name: 'Mahasiswa', icon: 'GraduationCap', url: '/mahasiswa', permissionKey: 'mahasiswa.view', sort: 2 },
+  { name: 'Akademik', icon: 'BookOpen', url: '/akademik/jadwal', permissionKey: 'akademik.view', sort: 3 },
+  { name: 'Kemahasiswaan', icon: 'Award', url: '/kemahasiswaan/prestasi', permissionKey: 'kemahasiswaan.view', sort: 4 },
   {
     name: 'Pengaturan Akses',
     icon: 'Settings',
     permissionKey: 'roles.view',
-    sort: 6,
+    sort: 5,
     children: [
       { name: 'Manajemen Role', icon: 'Shield', url: '/roles', permissionKey: 'roles.view', sort: 1 },
       { name: 'Manajemen Menu', icon: 'Menu', url: '/menus', permissionKey: 'menus.view', sort: 2 },
