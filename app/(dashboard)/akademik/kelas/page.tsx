@@ -184,16 +184,16 @@ export default function KebutuhanKelasPage() {
                 }}
                 className="w-full sm:w-60 pl-3 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy font-semibold text-slate-700"
               >
-                <option value="ALL">Semua Program Studi (9 Prodi)</option>
-                <option value="HKUM">S1 Ilmu Hukum (106 Matkul)</option>
-                <option value="IKOM">S1 Ilmu Komunikasi (97 Matkul)</option>
-                <option value="ADBI">S1 Administrasi Bisnis (94 Matkul)</option>
-                <option value="ADPU">S1 Administrasi Publik (77 Matkul)</option>
-                <option value="IPEM">S1 Ilmu Pemerintahan (79 Matkul)</option>
-                <option value="SING">S1 Sastra Inggris (82 Matkul)</option>
-                <option value="SOSI">S1 Sosiologi (69 Matkul)</option>
-                <option value="PUS">S1 Ilmu Perpustakaan (57 Matkul)</option>
-                <option value="PAJAK">S1 Perpajakan (45 Matkul)</option>
+                <option value="ALL">Semua Program Studi (261 Matkul Unik)</option>
+                <option value="HKUM">S1 Ilmu Hukum (40 Matkul)</option>
+                <option value="IKOM">S1 Ilmu Komunikasi (36 Matkul)</option>
+                <option value="ADBI">S1 Administrasi Bisnis (27 Matkul)</option>
+                <option value="ADPU">S1 Administrasi Publik (28 Matkul)</option>
+                <option value="IPEM">S1 Ilmu Pemerintahan (26 Matkul)</option>
+                <option value="SING">S1 Sastra Inggris (30 Matkul)</option>
+                <option value="SOSI">S1 Sosiologi (26 Matkul)</option>
+                <option value="PUS">S1 Ilmu Perpustakaan (28 Matkul)</option>
+                <option value="PAJAK">S1 Perpajakan (20 Matkul)</option>
               </select>
             </div>
 
