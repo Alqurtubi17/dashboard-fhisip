@@ -4,25 +4,21 @@ import { prisma } from '@/lib/prisma'
 
 const ACTIONS = ['view', 'create', 'edit', 'delete', 'export', 'approve']
 
-// Helper function to extract or derive module slug from Menu object
+// Helper function to extract a unique module slug from Menu object (based on URL / menu identity)
 function extractModuleSlug(menu: { name: string; url?: string | null; permissionKey?: string | null }): {
   slug: string
   label: string
 } {
-  if (menu.permissionKey && menu.permissionKey.includes('.')) {
-    const slug = menu.permissionKey.split('.')[0].toLowerCase().trim()
-    return { slug, label: menu.name }
-  }
-
-  if (menu.url) {
-    const cleanUrl = menu.url.replace(/^\/+/, '').trim()
+  // Primary: Use clean URL path to ensure every unique page gets its own permission block
+  if (menu.url && menu.url !== '#' && menu.url !== 'null') {
+    const cleanUrl = menu.url.replace(/^\/+/, '').replace(/\/+$/, '').trim()
     if (cleanUrl) {
-      const parts = cleanUrl.split('/')
-      const slug = parts[0].toLowerCase().trim()
+      const slug = cleanUrl.replace(/[^a-z0-9]/g, '_').toLowerCase()
       return { slug, label: menu.name }
     }
   }
 
+  // Secondary: Slugify menu name
   const slug = menu.name.toLowerCase().replace(/[^a-z0-9]/g, '_').trim()
   return { slug, label: menu.name }
 }
@@ -42,10 +38,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const dbMenus = await prisma.menu.findMany({ orderBy: { sort: 'asc' } })
     const activeSidebarModules = new Map<string, string>()
 
-    // Identify active sidebar menu modules (leaf child menus and standalone menus)
+    // Identify active sidebar menu modules (leaf child menus and standalone parent menus with URL)
     for (const menu of dbMenus) {
-      // If it's a child menu or a standalone menu with a URL
-      if (menu.url || menu.parentId) {
+      // If it's a child menu OR a standalone parent menu with a valid URL
+      if (menu.url && menu.url !== '#' && menu.url !== 'null') {
         const { slug, label } = extractModuleSlug(menu)
         if (slug && !activeSidebarModules.has(slug)) {
           activeSidebarModules.set(slug, label)
@@ -53,7 +49,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       }
     }
 
-    // Fallback: If no child menus, include all parent menus
+    // Fallback: If no URL-based menus found, include all menus
     if (activeSidebarModules.size === 0) {
       for (const menu of dbMenus) {
         const { slug, label } = extractModuleSlug(menu)
