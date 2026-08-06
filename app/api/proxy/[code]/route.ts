@@ -103,12 +103,13 @@ async function handleProxyRequest(req: Request, code: string) {
               k === 'noBilling' ||
               k === 'no_billing' ||
               k === 'nobilling' ||
-              (k === 'nim' && baseUrl.endsWith('/data-pribadi'))
+              (k.toLowerCase() === 'nim' &&
+                (baseUrl.endsWith('/data-pribadi') || baseUrl.endsWith('/yudisium') || baseUrl.endsWith('/billing-detail')))
           )
 
           if (pathParamKey && vars[pathParamKey]) {
             const val = String(vars[pathParamKey]).trim()
-            if (baseUrl.endsWith('/billing-detail') || baseUrl.endsWith('/data-pribadi')) {
+            if (baseUrl.endsWith('/billing-detail') || baseUrl.endsWith('/data-pribadi') || baseUrl.endsWith('/yudisium')) {
               baseUrl = `${baseUrl}/${val}`
             }
           }
@@ -117,6 +118,11 @@ async function handleProxyRequest(req: Request, code: string) {
           for (const [k, v] of Object.entries(vars)) {
             if (k !== pathParamKey && v !== undefined && v !== null && v !== '') {
               urlObj.searchParams.set(k, String(v))
+              // Auto alias camelCase to snake_case for max API compatibility
+              const snakeKey = k.replace(/([A-Z])/g, '_$1').toLowerCase()
+              if (snakeKey !== k && !urlObj.searchParams.has(snakeKey)) {
+                urlObj.searchParams.set(snakeKey, String(v))
+              }
             }
           }
           finalTargetUrl = urlObj.toString()
