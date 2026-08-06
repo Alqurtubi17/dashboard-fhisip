@@ -107,7 +107,7 @@ export default function KebutuhanKelasPage() {
             Perencanaan Prediksi Kelas & Tutor FHISIP 2026.1
           </h1>
           <p className="text-sm text-slate-200 leading-relaxed">
-            Prediksi otentik pembentukan kelas tutorial (50 peserta/kelas) dan estimasi kebutuhan minimal tutor (maksimal 4 kelas per tutor) bersumber langsung dari data registrasi FHISIP 2026.1 (Sheet 2 Excel Data Prediksi).
+            Prediksi otentik pembentukan kelas tutorial (50 peserta/kelas) dan estimasi kebutuhan minimal tutor (maksimal 4 kelas per tutor) bersumber langsung dari layanan API SRS UT 2026.1.
           </p>
         </div>
       </div>
@@ -166,7 +166,7 @@ export default function KebutuhanKelasPage() {
           <div>
             <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
               <FileSpreadsheet className="w-5 h-5 text-ut-blue" />
-              Tabel Prediksi Pembentukan Kelas & Tutor per Mata Kuliah (Excel 2026.1)
+              Tabel Prediksi Pembentukan Kelas & Tutor per Mata Kuliah (API SRS UT 2026.1)
             </h2>
             <p className="text-xs text-slate-500">
               Menampilkan {totalItems.toLocaleString('id-ID')} data prediksi mata kuliah berdasarkan rasio 50 mhs/kelas & maks 4 kelas/tutor
@@ -336,7 +336,7 @@ export default function KebutuhanKelasPage() {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-base">Detail Rincian Prediksi Kelas & Tutor</h3>
-                  <p className="text-xs text-slate-500">Mata Kuliah {selectedItem.kodeMatkul} (Excel 2026.1)</p>
+                  <p className="text-xs text-slate-500">Mata Kuliah {selectedItem.kodeMatkul} (API SRS UT 2026.1)</p>
                 </div>
               </div>
               <button
