@@ -139,3 +139,27 @@ model ApiConfig {
 
   @@map("api_configs")
 }
+
+model PrediksiKelas {
+  id                String   @id @default(cuid())
+  masa              String   // contoh: '20261', '20262'
+  kodeMatkul        String
+  namaMatkul        String
+  sks               Int      @default(3)
+  prodiCode         String   // HKUM, IKOM, ADPU, ADBI, IPEM, SOSI, SING, PUS, PAJAK
+  prodiName         String
+  sipasNonTtm       Int      @default(0)
+  nonSipas          Int      @default(0)
+  ttmSipas          Int      @default(0)
+  tutonSipas        Int      @default(0)
+  jumlahTTM         Int      @default(0)
+  jumlahTuton       Int      @default(0)
+  totalMahasiswa    Int      @default(0)
+  kebutuhanKelas    Int      @default(0)
+  kebutuhanTutorMin Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([masa, kodeMatkul])
+  @@map("prediksi_kelas")
+}

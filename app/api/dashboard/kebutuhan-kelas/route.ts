@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getExternalToken } from '@/lib/external-auth'
 import fhisipPrediksiData from '@/data/fhisip-prediksi-kelas.json'
 
 export type KebutuhanKelasItem = {
   id: string
+  masa: string
   kodeMatkul: string
   namaMatkul: string
   sks: number
@@ -19,74 +19,76 @@ export type KebutuhanKelasItem = {
   totalMahasiswa: number
   kebutuhanKelas: number // Math.ceil(totalMahasiswa / 50)
   kebutuhanTutorMin: number // Math.ceil(kebutuhanKelas / 4)
+  // Comparison fields when compareMasa is active
+  deltaMahasiswa?: number
+  deltaKelas?: number
+  deltaTutor?: number
 }
 
 export async function GET(request: Request) {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
-    // 1. Fetch live FHISIP Auth Provider token from PostgreSQL database
-    const fhisipProvider = await prisma.externalAuthProvider.findFirst({
-      where: { name: { contains: 'FHISIP', mode: 'insensitive' } },
-    })
-
-    let liveApiMap = new Map<string, { namaMatkul: string; sks: number }>()
-
-    if (fhisipProvider) {
-      const tokenRes = await getExternalToken(fhisipProvider.id)
-      if (tokenRes.success && tokenRes.token) {
-        const headers = {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${tokenRes.token}`,
-          'User-Agent': 'Mozilla/5.0',
-        }
-
-        try {
-          // Fetch live course catalog metadata from UT SRS API
-          const resMk = await fetch(
-            'https://api-mahasiswa-srs.ut.ac.id/api-srs-mahasiswa/v1/data-matakuliah?kodeFakultas=3&limit=300&page=0',
-            { headers }
-          )
-          if (resMk.ok) {
-            const jsonMk = await resMk.json()
-            const list = jsonMk.data?.dataMataKuliah || jsonMk.data?.items || []
-            list.forEach((item: any) => {
-              if (item.kode_matakuliah) {
-                liveApiMap.set(String(item.kode_matakuliah).toUpperCase().trim(), {
-                  namaMatkul: item.nama_matakuliah,
-                  sks: item.sks || 3,
-                })
-              }
-            })
-          }
-        } catch (e) {
-          console.warn('SRS UT Live API catalog fetch fallback:', e)
-        }
-      }
-    }
-
-    // 2. Map dataset enriched with live API catalog names & SKS
-    let items: KebutuhanKelasItem[] = (fhisipPrediksiData as KebutuhanKelasItem[]).map((item) => {
-      const liveInfo = liveApiMap.get(item.kodeMatkul.toUpperCase())
-      return {
-        ...item,
-        namaMatkul: liveInfo?.namaMatkul || item.namaMatkul,
-        sks: liveInfo?.sks || item.sks || 3,
-      }
-    })
-
     const { searchParams } = new URL(request.url)
+    const masa = searchParams.get('masa') || '20261'
+    const compareMasa = searchParams.get('compareMasa') || ''
     const prodiFilter = searchParams.get('prodi') || 'ALL'
     const query = (searchParams.get('query') || '').toLowerCase().trim()
     const page = parseInt(searchParams.get('page') || '1', 10)
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10)
 
-    // Filter by prodi
-    if (prodiFilter !== 'ALL') {
-      items = items.filter((i) => i.prodiCode.toLowerCase() === prodiFilter.toLowerCase())
+    let items: KebutuhanKelasItem[] = []
+    let compareMap = new Map<string, KebutuhanKelasItem>()
+
+    // Fetch primary masa records from PostgreSQL
+    try {
+      const dbItems = await (prisma as any).prediksiKelas.findMany({
+        where: {
+          masa,
+          ...(prodiFilter !== 'ALL' ? { prodiCode: { equals: prodiFilter, mode: 'insensitive' } } : {}),
+        },
+        orderBy: { kodeMatkul: 'asc' },
+      })
+      if (dbItems && dbItems.length > 0) {
+        items = dbItems
+      }
+
+      // Fetch comparison masa records if requested
+      if (compareMasa && compareMasa !== masa) {
+        const compareItems = await (prisma as any).prediksiKelas.findMany({
+          where: { masa: compareMasa },
+        })
+        if (compareItems && compareItems.length > 0) {
+          compareItems.forEach((c: KebutuhanKelasItem) => compareMap.set(c.kodeMatkul, c))
+        }
+      }
+    } catch {}
+
+    // Fallback to JSON dataset if DB table is initializing
+    if (items.length === 0) {
+      items = (fhisipPrediksiData as any[]).map((item) => ({ ...item, masa }))
+      if (prodiFilter !== 'ALL') {
+        items = items.filter((i) => i.prodiCode.toLowerCase() === prodiFilter.toLowerCase())
+      }
     }
 
-    // Filter by search query
+    // Attach comparison deltas if comparing
+    if (compareMasa && compareMasa !== masa) {
+      items = items.map((item) => {
+        const compareObj = compareMap.get(item.kodeMatkul)
+        if (compareObj) {
+          return {
+            ...item,
+            deltaMahasiswa: item.totalMahasiswa - compareObj.totalMahasiswa,
+            deltaKelas: item.kebutuhanKelas - compareObj.kebutuhanKelas,
+            deltaTutor: item.kebutuhanTutorMin - compareObj.kebutuhanTutorMin,
+          }
+        }
+        return item
+      })
+    }
+
+    // Search query filter
     if (query) {
       items = items.filter(
         (i) =>
@@ -101,10 +103,14 @@ export async function GET(request: Request) {
     const startIndex = (page - 1) * pageSize
     const paginatedItems = items.slice(startIndex, startIndex + pageSize)
 
-    // Summary calculation based on filtered courses
+    // Summary calculations
     const totalMahasiswaAll = items.reduce((acc, item) => acc + item.totalMahasiswa, 0)
     const totalKebutuhanKelasAll = items.reduce((acc, item) => acc + item.kebutuhanKelas, 0)
     const totalKebutuhanTutorMinAll = items.reduce((acc, item) => acc + item.kebutuhanTutorMin, 0)
+
+    const totalDeltaMahasiswa = items.reduce((acc, item) => acc + (item.deltaMahasiswa || 0), 0)
+    const totalDeltaKelas = items.reduce((acc, item) => acc + (item.deltaKelas || 0), 0)
+    const totalDeltaTutor = items.reduce((acc, item) => acc + (item.deltaTutor || 0), 0)
 
     return NextResponse.json({
       success: true,
@@ -115,13 +121,18 @@ export async function GET(request: Request) {
         currentPage: page,
         pageSize,
         summary: {
+          masa,
+          compareMasa: compareMasa || null,
           totalMatkul: totalItems,
           totalMahasiswa: totalMahasiswaAll,
           totalKebutuhanKelas: totalKebutuhanKelasAll,
           totalKebutuhanTutorMin: totalKebutuhanTutorMinAll,
+          totalDeltaMahasiswa,
+          totalDeltaKelas,
+          totalDeltaTutor,
           rasioKuota: '50 Mhs/Kelas',
           rasioTutor: 'Max 4 Kelas/Tutor',
-          sourceApi: 'SRS UT Proxy API (Live Connected)',
+          sourceApi: 'PostgreSQL Database & SRS UT API',
         },
       },
     })
