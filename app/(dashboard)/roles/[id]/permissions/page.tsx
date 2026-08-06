@@ -16,7 +16,7 @@ const ACTION_LABELS: Record<string, string> = {
   export: 'Download Excel',
 }
 
-const MODULE_LABELS: Record<string, string> = {
+const DEFAULT_MODULE_LABELS: Record<string, string> = {
   dashboard: 'Ringkasan Ikhtisar',
   mahasiswa: 'Data Mahasiswa',
   dosen: 'Dosen & Pengajar',
@@ -37,6 +37,7 @@ export default function RolePermissionsPage() {
 
   const [role, setRole] = useState<RoleData | null>(null)
   const [modules, setModules] = useState<Record<string, PermissionItem[]>>({})
+  const [moduleLabels, setModuleLabels] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -49,6 +50,7 @@ export default function RolePermissionsPage() {
         const json = await res.json()
         setRole(json.role)
         setModules(json.modules || {})
+        setModuleLabels(json.moduleLabels || {})
       }
     } catch (e) {
       console.error('Failed to load role permissions:', e)
@@ -106,6 +108,12 @@ export default function RolePermissionsPage() {
     }
   }
 
+  const getModuleTitle = (slug: string) => {
+    if (moduleLabels[slug]) return moduleLabels[slug]
+    if (DEFAULT_MODULE_LABELS[slug]) return DEFAULT_MODULE_LABELS[slug]
+    return slug.charAt(0).toUpperCase() + slug.slice(1).replace(/_/g, ' ')
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16 text-slate-400 text-sm">
@@ -154,7 +162,7 @@ export default function RolePermissionsPage() {
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                   <Layers className="w-4 h-4 text-ut-blue" />
-                  {MODULE_LABELS[moduleName] ?? moduleName}
+                  {getModuleTitle(moduleName)}
                 </h3>
                 <button
                   onClick={() => toggleModuleAll(moduleName, !allChecked)}

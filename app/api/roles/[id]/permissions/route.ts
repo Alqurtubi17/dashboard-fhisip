@@ -2,27 +2,85 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 
-// GET -> returns all permissions grouped by module, with a boolean "checked" flag for this role
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const role = await prisma.role.findFirst({
-    where: {
-      OR: [{ id: params.id }, { slug: params.id }],
-    },
-  })
+const ACTIONS = ['view', 'create', 'edit', 'delete', 'export', 'approve']
 
-  if (!role) return NextResponse.json({ error: 'Role tidak ditemukan' }, { status: 404 })
-
-  const allPermissions = await prisma.permission.findMany({ orderBy: [{ module: 'asc' }, { action: 'asc' }] })
-  const rolePermissions = await prisma.rolePermission.findMany({ where: { roleId: role.id } })
-  const checkedIds = new Set(rolePermissions.map((rp) => rp.permissionId))
-
-  const grouped: Record<string, { id: string; action: string; checked: boolean }[]> = {}
-  for (const p of allPermissions) {
-    if (!grouped[p.module]) grouped[p.module] = []
-    grouped[p.module].push({ id: p.id, action: p.action, checked: checkedIds.has(p.id) || role.isSystem })
+// Helper function to extract or derive module slug from Menu object
+function extractModuleSlug(menu: { name: string; url?: string | null; permissionKey?: string | null }): {
+  slug: string
+  label: string
+} {
+  if (menu.permissionKey && menu.permissionKey.includes('.')) {
+    const slug = menu.permissionKey.split('.')[0].toLowerCase().trim()
+    return { slug, label: menu.name }
   }
 
-  return NextResponse.json({ role, modules: grouped })
+  if (menu.url) {
+    const cleanUrl = menu.url.replace(/^\/+/, '').trim()
+    if (cleanUrl) {
+      const parts = cleanUrl.split('/')
+      const slug = parts[0].toLowerCase().trim()
+      return { slug, label: menu.name }
+    }
+  }
+
+  const slug = menu.name.toLowerCase().replace(/[^a-z0-9]/g, '_').trim()
+  return { slug, label: menu.name }
+}
+
+// GET -> returns all permissions grouped by active database menus, with a boolean "checked" flag for this role
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const role = await prisma.role.findFirst({
+      where: {
+        OR: [{ id: params.id }, { slug: params.id }],
+      },
+    })
+
+    if (!role) return NextResponse.json({ error: 'Role tidak ditemukan' }, { status: 404 })
+
+    // 1. Fetch all active menus from database to dynamically synchronize permissions
+    const dbMenus = await prisma.menu.findMany({ orderBy: { sort: 'asc' } })
+    const dynamicModuleLabels: Record<string, string> = {}
+
+    // Auto-create permission entries for all database menus if missing
+    for (const menu of dbMenus) {
+      const { slug, label } = extractModuleSlug(menu)
+      if (!dynamicModuleLabels[slug]) {
+        dynamicModuleLabels[slug] = label
+      }
+
+      for (const action of ACTIONS) {
+        await prisma.permission.upsert({
+          where: { module_action: { module: slug, action } },
+          update: { label: `${label} - ${action}` },
+          create: {
+            module: slug,
+            action,
+            label: `${label} - ${action}`,
+          },
+        })
+      }
+    }
+
+    // 2. Fetch all permissions from PostgreSQL
+    const allPermissions = await prisma.permission.findMany({ orderBy: [{ module: 'asc' }, { action: 'asc' }] })
+    const rolePermissions = await prisma.rolePermission.findMany({ where: { roleId: role.id } })
+    const checkedIds = new Set(rolePermissions.map((rp) => rp.permissionId))
+
+    const grouped: Record<string, { id: string; action: string; checked: boolean }[]> = {}
+    for (const p of allPermissions) {
+      if (!grouped[p.module]) grouped[p.module] = []
+      grouped[p.module].push({ id: p.id, action: p.action, checked: checkedIds.has(p.id) || role.isSystem })
+    }
+
+    return NextResponse.json({
+      role,
+      modules: grouped,
+      moduleLabels: dynamicModuleLabels,
+    })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Gagal memuat permission' }, { status: 500 })
+  }
 }
 
 const putSchema = z.object({
@@ -31,31 +89,38 @@ const putSchema = z.object({
 
 // PUT -> replace the full set of permissions assigned to this role
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const role = await prisma.role.findFirst({
-    where: {
-      OR: [{ id: params.id }, { slug: params.id }],
-    },
-  })
+  try {
+    const role = await prisma.role.findFirst({
+      where: {
+        OR: [{ id: params.id }, { slug: params.id }],
+      },
+    })
 
-  if (!role) return NextResponse.json({ error: 'Role tidak ditemukan' }, { status: 404 })
+    if (!role) return NextResponse.json({ error: 'Role tidak ditemukan' }, { status: 404 })
 
-  if (role.isSystem) {
-    return NextResponse.json({ error: 'Hak Akses Super Admin memiliki otorisasi penuh dan tidak dapat diubah.' }, { status: 403 })
+    if (role.isSystem) {
+      return NextResponse.json(
+        { error: 'Hak Akses Super Admin memiliki otorisasi penuh dan tidak dapat diubah.' },
+        { status: 403 }
+      )
+    }
+
+    const body = await req.json().catch(() => null)
+    const parsed = putSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 })
+    }
+
+    await prisma.$transaction([
+      prisma.rolePermission.deleteMany({ where: { roleId: role.id } }),
+      prisma.rolePermission.createMany({
+        data: parsed.data.permissionIds.map((permissionId) => ({ roleId: role.id, permissionId })),
+        skipDuplicates: true,
+      }),
+    ])
+
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Gagal menyimpan permission' }, { status: 500 })
   }
-
-  const body = await req.json().catch(() => null)
-  const parsed = putSchema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 })
-  }
-
-  await prisma.$transaction([
-    prisma.rolePermission.deleteMany({ where: { roleId: role.id } }),
-    prisma.rolePermission.createMany({
-      data: parsed.data.permissionIds.map((permissionId) => ({ roleId: role.id, permissionId })),
-      skipDuplicates: true,
-    }),
-  ])
-
-  return NextResponse.json({ success: true })
 }
