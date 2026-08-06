@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import {
   LayoutGrid,
+  Calendar,
   BookOpen,
   Users,
   Search,
@@ -14,6 +15,9 @@ import {
   FileSpreadsheet,
   Layers,
   Download,
+  GitCompare,
+  ArrowUpRight,
+  ArrowDownRight,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -23,6 +27,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 
 export type KebutuhanKelasItem = {
   id: string
+  masa: string
   kodeMatkul: string
   namaMatkul: string
   sks: number
@@ -37,15 +42,23 @@ export type KebutuhanKelasItem = {
   totalMahasiswa: number
   kebutuhanKelas: number
   kebutuhanTutorMin: number
+  deltaMahasiswa?: number
+  deltaKelas?: number
+  deltaTutor?: number
 }
 
 type Summary = {
+  masa?: string
+  compareMasa?: string | null
   totalMatkul: number
   totalMahasiswa: number
   totalKebutuhanKelas: number
   totalKebutuhanTutorMin: number
-  rasioKuota: string
-  rasioTutor: string
+  totalDeltaMahasiswa?: number
+  totalDeltaKelas?: number
+  totalDeltaTutor?: number
+  rasioKuota?: string
+  rasioTutor?: string
 }
 
 type SortField = 'kodeMatkul' | 'namaMatkul' | 'prodiCode' | 'totalMahasiswa' | 'kebutuhanKelas' | 'kebutuhanTutorMin'
@@ -54,13 +67,13 @@ type SortOrder = 'asc' | 'desc'
 export default function KebutuhanKelasPage() {
   const [items, setItems] = useState<KebutuhanKelasItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedMasa, setSelectedMasa] = useState<string>('20261')
+  const [compareMasa, setCompareMasa] = useState<string>('')
   const [summary, setSummary] = useState<Summary>({
     totalMatkul: 0,
     totalMahasiswa: 0,
     totalKebutuhanKelas: 0,
     totalKebutuhanTutorMin: 0,
-    rasioKuota: '50 Mahasiswa / Kelas',
-    rasioTutor: 'Max 4 Kelas / Tutor',
   })
 
   // Filters & Sorting State
@@ -69,7 +82,6 @@ export default function KebutuhanKelasPage() {
   const debouncedSearchQuery = useDebounce(searchQuery, 400)
   const [page, setPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(10)
-  const [totalItems, setTotalItems] = useState<number>(0)
 
   // Sorting state
   const [sortField, setSortField] = useState<SortField>('kodeMatkul')
@@ -81,7 +93,7 @@ export default function KebutuhanKelasPage() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const url = `/api/dashboard/kebutuhan-kelas?prodi=${selectedProdi}&query=${encodeURIComponent(
+      const url = `/api/dashboard/kebutuhan-kelas?masa=${selectedMasa}&compareMasa=${compareMasa}&prodi=${selectedProdi}&query=${encodeURIComponent(
         debouncedSearchQuery
       )}&page=1&pageSize=300`
       const res = await fetch(url)
@@ -89,7 +101,6 @@ export default function KebutuhanKelasPage() {
         const json = await res.json()
         if (json.success && json.data) {
           setItems(json.data.items)
-          setTotalItems(json.data.totalItems)
           if (json.data.summary) {
             setSummary(json.data.summary)
           }
@@ -104,7 +115,7 @@ export default function KebutuhanKelasPage() {
 
   useEffect(() => {
     fetchData()
-  }, [selectedProdi, debouncedSearchQuery])
+  }, [selectedMasa, compareMasa, selectedProdi, debouncedSearchQuery])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -132,7 +143,7 @@ export default function KebutuhanKelasPage() {
   const paginatedItems = sortedItems.slice((page - 1) * pageSize, page * pageSize)
 
   const handleExportExcel = () => {
-    const exportUrl = `/api/dashboard/kebutuhan-kelas/export?prodi=${selectedProdi}&query=${encodeURIComponent(
+    const exportUrl = `/api/dashboard/kebutuhan-kelas/export?masa=${selectedMasa}&prodi=${selectedProdi}&query=${encodeURIComponent(
       searchQuery
     )}`
     window.location.href = exportUrl
@@ -159,9 +170,60 @@ export default function KebutuhanKelasPage() {
             Perencanaan Prediksi Kelas & Tutor FHISIP
           </h1>
           <p className="text-sm text-slate-200 leading-relaxed">
-            Perencanaan dan estimasi kebutuhan kelas tutorial (50 mahasiswa per kelas) serta analisis kebutuhan tutor pengampu di lingkungan FHISIP Universitas Terbuka.
+            Perencanaan dan estimasi kebutuhan kelas tutorial serta analisis kebutuhan tutor pengampu di lingkungan FHISIP Universitas Terbuka.
           </p>
         </div>
+      </div>
+
+      {/* Control Bar: Masa Selector & Comparison Options */}
+      <div className="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50 border border-slate-200/80">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+              <Calendar className="w-4 h-4 text-ut-navy" />
+              Masa Akademik:
+            </span>
+            <select
+              value={selectedMasa}
+              onChange={(e) => {
+                setSelectedMasa(e.target.value)
+                setPage(1)
+              }}
+              className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl font-bold text-ut-navy focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
+            >
+              <option value="20261">Masa 2026.1 (Ganjil)</option>
+              <option value="20262">Masa 2026.2 (Genap) - Belum Ada Data</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 pl-3 border-l border-slate-300">
+            <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+              <GitCompare className="w-4 h-4 text-emerald-600" />
+              Bandingkan Dengan:
+            </span>
+            <select
+              value={compareMasa}
+              onChange={(e) => {
+                setCompareMasa(e.target.value)
+                setPage(1)
+              }}
+              className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            >
+              <option value="">-- Tanpa Pembanding --</option>
+              {selectedMasa !== '20261' && <option value="20261">Masa 2026.1 (Ganjil)</option>}
+              {selectedMasa !== '20262' && <option value="20262">Masa 2026.2 (Genap)</option>}
+            </select>
+          </div>
+        </div>
+
+        {/* Download Excel Button */}
+        <button
+          onClick={handleExportExcel}
+          className="btn-primary py-2 px-4 text-xs font-bold inline-flex items-center justify-center gap-2 rounded-xl shadow-xs hover:shadow-md transition bg-emerald-600 hover:bg-emerald-700 text-white"
+        >
+          <Download className="w-4 h-4" />
+          <span>Download Excel (.xlsx)</span>
+        </button>
       </div>
 
       {/* Summary Metric Cards */}
@@ -179,9 +241,17 @@ export default function KebutuhanKelasPage() {
 
         <div className="card p-5 border-t-4 border-t-amber-500 space-y-2">
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Peserta Tuton</p>
-          <p className="text-2xl font-extrabold text-amber-900">
-            {loading ? <span className="inline-block w-16 h-7 bg-amber-200 animate-pulse rounded"></span> : summary.totalMahasiswa.toLocaleString('id-ID')}
-          </p>
+          <div className="flex items-baseline gap-2">
+            <p className="text-2xl font-extrabold text-amber-900">
+              {loading ? <span className="inline-block w-16 h-7 bg-amber-200 animate-pulse rounded"></span> : summary.totalMahasiswa.toLocaleString('id-ID')}
+            </p>
+            {compareMasa && summary.totalDeltaMahasiswa !== undefined && summary.totalDeltaMahasiswa !== 0 && (
+              <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full inline-flex items-center gap-0.5 ${summary.totalDeltaMahasiswa > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                {summary.totalDeltaMahasiswa > 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {summary.totalDeltaMahasiswa > 0 ? `+${summary.totalDeltaMahasiswa.toLocaleString('id-ID')}` : summary.totalDeltaMahasiswa.toLocaleString('id-ID')}
+              </span>
+            )}
+          </div>
           <p className="text-[11px] text-slate-500 flex items-center gap-1">
             <Users className="w-3.5 h-3.5 text-amber-600" />
             <span>Akumulasi Registrasi Peserta</span>
@@ -190,23 +260,39 @@ export default function KebutuhanKelasPage() {
 
         <div className="card p-5 border-t-4 border-t-emerald-600 space-y-2">
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Prediksi Kelas Tuton</p>
-          <p className="text-2xl font-extrabold text-emerald-900">
-            {loading ? <span className="inline-block w-16 h-7 bg-emerald-200 animate-pulse rounded"></span> : `${summary.totalKebutuhanKelas.toLocaleString('id-ID')} Kelas`}
-          </p>
+          <div className="flex items-baseline gap-2">
+            <p className="text-2xl font-extrabold text-emerald-900">
+              {loading ? <span className="inline-block w-16 h-7 bg-emerald-200 animate-pulse rounded"></span> : `${summary.totalKebutuhanKelas.toLocaleString('id-ID')} Kelas`}
+            </p>
+            {compareMasa && summary.totalDeltaKelas !== undefined && summary.totalDeltaKelas !== 0 && (
+              <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full inline-flex items-center gap-0.5 ${summary.totalDeltaKelas > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                {summary.totalDeltaKelas > 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {summary.totalDeltaKelas > 0 ? `+${summary.totalDeltaKelas}` : summary.totalDeltaKelas} Kelas
+              </span>
+            )}
+          </div>
           <p className="text-[11px] text-slate-500 flex items-center gap-1">
             <Calculator className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Kalkulasi (⌈Total Peserta / 50⌉)</span>
+            <span>Estimasi Kebutuhan Kelas</span>
           </p>
         </div>
 
         <div className="card p-5 border-t-4 border-t-purple-600 space-y-2">
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Kebutuhan Minimal Tutor</p>
-          <p className="text-2xl font-extrabold text-purple-900">
-            {loading ? <span className="inline-block w-16 h-7 bg-purple-200 animate-pulse rounded"></span> : `${summary.totalKebutuhanTutorMin.toLocaleString('id-ID')} Tutor`}
-          </p>
+          <div className="flex items-baseline gap-2">
+            <p className="text-2xl font-extrabold text-purple-900">
+              {loading ? <span className="inline-block w-16 h-7 bg-purple-200 animate-pulse rounded"></span> : `${summary.totalKebutuhanTutorMin.toLocaleString('id-ID')} Tutor`}
+            </p>
+            {compareMasa && summary.totalDeltaTutor !== undefined && summary.totalDeltaTutor !== 0 && (
+              <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full inline-flex items-center gap-0.5 ${summary.totalDeltaTutor > 0 ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800'}`}>
+                {summary.totalDeltaTutor > 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                {summary.totalDeltaTutor > 0 ? `+${summary.totalDeltaTutor}` : summary.totalDeltaTutor} Tutor
+              </span>
+            )}
+          </div>
           <p className="text-[11px] text-slate-500 flex items-center gap-1">
             <UserCheck className="w-3.5 h-3.5 text-purple-600" />
-            <span>Kalkulasi (⌈Total Kelas / 4⌉)</span>
+            <span>Estimasi Kebutuhan Tutor</span>
           </p>
         </div>
       </div>
@@ -221,7 +307,7 @@ export default function KebutuhanKelasPage() {
               Tabel Prediksi Pembentukan Kelas & Tutor per Mata Kuliah
             </h2>
             <p className="text-xs text-slate-500">
-              Menampilkan {sortedItems.length.toLocaleString('id-ID')} data prediksi (50 mhs/kelas & maks 4 kelas/tutor). Klik judul kolom untuk mengurutkan data.
+              Menampilkan {sortedItems.length.toLocaleString('id-ID')} data prediksi mata kuliah. Klik judul kolom untuk mengurutkan data.
             </p>
           </div>
 
@@ -271,16 +357,6 @@ export default function KebutuhanKelasPage() {
                 </button>
               )}
             </div>
-
-            {/* Download Excel Button */}
-            <button
-              onClick={handleExportExcel}
-              className="py-2 px-3 text-xs font-bold inline-flex items-center justify-center gap-1.5 rounded-xl shadow-xs hover:shadow-md transition bg-emerald-600 hover:bg-emerald-700 text-white"
-              title="Download File Excel (.xlsx)"
-            >
-              <Download className="w-4 h-4" />
-              <span>Export Excel</span>
-            </button>
           </div>
         </div>
 
@@ -330,7 +406,7 @@ export default function KebutuhanKelasPage() {
                   className="px-4 py-3 font-bold text-center cursor-pointer hover:bg-slate-100 transition group"
                 >
                   <div className="flex items-center justify-center gap-1.5">
-                    <span>Prediksi Kelas (50 Mhs/Kelas)</span>
+                    <span>Prediksi Kelas</span>
                     {renderSortIcon('kebutuhanKelas')}
                   </div>
                 </th>
@@ -358,7 +434,19 @@ export default function KebutuhanKelasPage() {
               {!loading && sortedItems.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
-                    Tidak ada mata kuliah yang sesuai dengan filter / pencarian.
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <Calendar className="w-8 h-8 text-slate-300" />
+                      <p className="text-sm font-bold text-slate-700">
+                        {selectedMasa === '20262'
+                          ? 'Belum Ada Data Registrasi Masa 2026.2 (Genap)'
+                          : 'Tidak ada data mata kuliah yang sesuai dengan pencarian.'}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {selectedMasa === '20262'
+                          ? 'Data registrasi 2026.2 belum dibuka / belum diinputkan ke sistem database.'
+                          : 'Coba ubah kata kunci atau filter program studi.'}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -386,16 +474,38 @@ export default function KebutuhanKelasPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-900 border border-emerald-400/30 font-extrabold text-xs">
-                        <Calculator className="w-3.5 h-3.5 text-emerald-600" />
-                        {item.kebutuhanKelas.toLocaleString('id-ID')} Kelas
-                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-900 border border-emerald-400/30 font-extrabold text-xs">
+                          <Calculator className="w-3.5 h-3.5 text-emerald-600" />
+                          {item.kebutuhanKelas.toLocaleString('id-ID')} Kelas
+                        </span>
+                        {compareMasa && item.deltaKelas !== undefined && item.deltaKelas !== 0 && (
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full inline-flex items-center gap-0.5 ${
+                              item.deltaKelas > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            {item.deltaKelas > 0 ? `↑ +${item.deltaKelas} Kelas` : `↓ ${item.deltaKelas} Kelas`}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-purple-500/10 text-purple-900 border border-purple-400/30 font-extrabold text-xs">
-                        <UserCheck className="w-3.5 h-3.5 text-purple-600" />
-                        {item.kebutuhanTutorMin.toLocaleString('id-ID')} Tutor
-                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-purple-500/10 text-purple-900 border border-purple-400/30 font-extrabold text-xs">
+                          <UserCheck className="w-3.5 h-3.5 text-purple-600" />
+                          {item.kebutuhanTutorMin.toLocaleString('id-ID')} Tutor
+                        </span>
+                        {compareMasa && item.deltaTutor !== undefined && item.deltaTutor !== 0 && (
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full inline-flex items-center gap-0.5 ${
+                              item.deltaTutor > 0 ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {item.deltaTutor > 0 ? `↑ +${item.deltaTutor} Tutor` : `↓ ${item.deltaTutor} Tutor`}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <button
@@ -478,7 +588,7 @@ export default function KebutuhanKelasPage() {
               <div className="bg-emerald-50 p-3.5 rounded-xl border border-emerald-200 space-y-1">
                 <p className="font-bold text-emerald-900 text-xs flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  1. Formula Prediksi Kelas (50 Peserta/Kelas):
+                  1. Formula Prediksi Kelas:
                 </p>
                 <p className="font-mono text-xs text-emerald-900 font-bold bg-white p-2 rounded border border-emerald-300 text-center">
                   ⌈{selectedItem.totalMahasiswa.toLocaleString('id-ID')} Mhs ÷ 50 Mhs⌉ = {selectedItem.kebutuhanKelas.toLocaleString('id-ID')} Kelas Tuton
@@ -489,7 +599,7 @@ export default function KebutuhanKelasPage() {
               <div className="bg-purple-50 p-3.5 rounded-xl border border-purple-200 space-y-1">
                 <p className="font-bold text-purple-900 text-xs flex items-center gap-1.5">
                   <UserCheck className="w-4 h-4 text-purple-600" />
-                  2. Formula Kebutuhan Minimal Tutor (Max 4 Kelas/Tutor):
+                  2. Formula Kebutuhan Minimal Tutor:
                 </p>
                 <p className="font-mono text-xs text-purple-900 font-bold bg-white p-2 rounded border border-purple-300 text-center">
                   ⌈{selectedItem.kebutuhanKelas.toLocaleString('id-ID')} Kelas ÷ 4 Kelas/Tutor⌉ = {selectedItem.kebutuhanTutorMin.toLocaleString('id-ID')} Tutor Minimal
