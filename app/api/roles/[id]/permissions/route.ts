@@ -4,11 +4,16 @@ import { prisma } from '@/lib/prisma'
 
 // GET -> returns all permissions grouped by module, with a boolean "checked" flag for this role
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const role = await prisma.role.findUnique({ where: { id: params.id } })
+  const role = await prisma.role.findFirst({
+    where: {
+      OR: [{ id: params.id }, { slug: params.id }],
+    },
+  })
+
   if (!role) return NextResponse.json({ error: 'Role tidak ditemukan' }, { status: 404 })
 
   const allPermissions = await prisma.permission.findMany({ orderBy: [{ module: 'asc' }, { action: 'asc' }] })
-  const rolePermissions = await prisma.rolePermission.findMany({ where: { roleId: params.id } })
+  const rolePermissions = await prisma.rolePermission.findMany({ where: { roleId: role.id } })
   const checkedIds = new Set(rolePermissions.map((rp) => rp.permissionId))
 
   const grouped: Record<string, { id: string; action: string; checked: boolean }[]> = {}
@@ -26,10 +31,16 @@ const putSchema = z.object({
 
 // PUT -> replace the full set of permissions assigned to this role
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const role = await prisma.role.findUnique({ where: { id: params.id } })
+  const role = await prisma.role.findFirst({
+    where: {
+      OR: [{ id: params.id }, { slug: params.id }],
+    },
+  })
+
   if (!role) return NextResponse.json({ error: 'Role tidak ditemukan' }, { status: 404 })
+
   if (role.isSystem) {
-    return NextResponse.json({ error: 'Permission Super Admin tidak dapat diubah (selalu penuh)' }, { status: 403 })
+    return NextResponse.json({ error: 'Hak Akses Super Admin memiliki otorisasi penuh dan tidak dapat diubah.' }, { status: 403 })
   }
 
   const body = await req.json().catch(() => null)
@@ -39,9 +50,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   await prisma.$transaction([
-    prisma.rolePermission.deleteMany({ where: { roleId: params.id } }),
+    prisma.rolePermission.deleteMany({ where: { roleId: role.id } }),
     prisma.rolePermission.createMany({
-      data: parsed.data.permissionIds.map((permissionId) => ({ roleId: params.id, permissionId })),
+      data: parsed.data.permissionIds.map((permissionId) => ({ roleId: role.id, permissionId })),
       skipDuplicates: true,
     }),
   ])
