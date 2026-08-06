@@ -146,27 +146,58 @@ async function handleProxyRequest(req: Request, code: string) {
       responseJson = { raw: responseText }
     }
 
-    // Smart Proxy Filtering for REST APIs
+    // Smart Proxy Filtering for REST APIs (Deep-Path Traversal into dataPribadi array)
     const vars = clientBody.variables ?? clientBody ?? {}
     const filterFakultas = vars.kodeFakultas ?? vars.kode_fakultas ?? vars.fakultas
     const filterProdi = vars.kodeProdi ?? vars.kode_program_studi ?? vars.prodi
     const filterSearch = vars.search ?? vars.q
 
     if (responseJson && typeof responseJson === 'object') {
-      const dataContainer = responseJson.data?.dataPribadi
-        ? responseJson.data
-        : responseJson.dataPribadi
-        ? responseJson
-        : null
+      let targetArray: any[] | null = null
+      let containerObj: any = null
+      let arrayKey = ''
 
-      if (dataContainer && Array.isArray(dataContainer.dataPribadi)) {
-        let list = dataContainer.dataPribadi
+      if (Array.isArray(responseJson.data?.dataPribadi)) {
+        containerObj = responseJson.data
+        targetArray = responseJson.data.dataPribadi
+        arrayKey = 'dataPribadi'
+      } else if (Array.isArray(responseJson.dataPribadi)) {
+        containerObj = responseJson
+        targetArray = responseJson.dataPribadi
+        arrayKey = 'dataPribadi'
+      } else if (Array.isArray(responseJson.data)) {
+        containerObj = responseJson
+        targetArray = responseJson.data
+        arrayKey = 'data'
+      } else if (Array.isArray(responseJson.items)) {
+        containerObj = responseJson
+        targetArray = responseJson.items
+        arrayKey = 'items'
+      }
+
+      if (containerObj && targetArray && arrayKey) {
+        let list = targetArray
 
         if (filterFakultas !== undefined && filterFakultas !== null && filterFakultas !== '') {
           const fkStr = String(filterFakultas).trim().toUpperCase()
           list = list.filter((m: any) => {
-            const mFakKode = String(m.info_ut?.program_studi?.fakultas?.kode_fakultas || '').toUpperCase()
-            const mFakSingk = String(m.info_ut?.program_studi?.fakultas?.singkatan || '').toUpperCase()
+            const mFakKode = String(
+              m.info_ut?.program_studi?.fakultas?.kode_fakultas ??
+                m.fakultas?.kode_fakultas ??
+                m.program_studi?.fakultas?.kode_fakultas ??
+                m.kode_fakultas ??
+                m.info_ut?.fakultas?.kode_fakultas ??
+                ''
+            ).toUpperCase()
+
+            const mFakSingk = String(
+              m.info_ut?.program_studi?.fakultas?.singkatan ??
+                m.fakultas?.singkatan ??
+                m.program_studi?.fakultas?.singkatan ??
+                m.singkatan ??
+                ''
+            ).toUpperCase()
+
             return mFakKode === fkStr || mFakSingk === fkStr
           })
         }
@@ -174,8 +205,20 @@ async function handleProxyRequest(req: Request, code: string) {
         if (filterProdi !== undefined && filterProdi !== null && filterProdi !== '') {
           const prStr = String(filterProdi).trim().toUpperCase()
           list = list.filter((m: any) => {
-            const mProdiKode = String(m.info_ut?.program_studi?.kode_program_studi || '').toUpperCase()
-            const mProdiNama = String(m.info_ut?.program_studi?.nama_program_studi || '').toUpperCase()
+            const mProdiKode = String(
+              m.info_ut?.program_studi?.kode_program_studi ??
+                m.program_studi?.kode_program_studi ??
+                m.kode_program_studi ??
+                ''
+            ).toUpperCase()
+
+            const mProdiNama = String(
+              m.info_ut?.program_studi?.nama_program_studi ??
+                m.program_studi?.nama_program_studi ??
+                m.nama_program_studi ??
+                ''
+            ).toUpperCase()
+
             return mProdiKode === prStr || mProdiNama.includes(prStr)
           })
         }
@@ -183,14 +226,16 @@ async function handleProxyRequest(req: Request, code: string) {
         if (filterSearch !== undefined && filterSearch !== null && filterSearch !== '') {
           const sStr = String(filterSearch).trim().toUpperCase()
           list = list.filter((m: any) => {
-            const nama = String(m.nama_mahasiswa || '').toUpperCase()
+            const nama = String(m.nama_mahasiswa || m.nama || '').toUpperCase()
             const nim = String(m.nim || '').toUpperCase()
             return nama.includes(sStr) || nim.includes(sStr)
           })
         }
 
-        dataContainer.dataPribadi = list
-        dataContainer.totalItems = list.length
+        containerObj[arrayKey] = list
+        if ('totalItems' in containerObj) {
+          containerObj.totalItems = list.length
+        }
       }
     }
 
