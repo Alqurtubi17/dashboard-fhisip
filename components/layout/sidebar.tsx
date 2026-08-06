@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState } from 'react'
 import * as Icons from 'lucide-react'
-import { X } from 'lucide-react'
+import { ChevronDown, X } from 'lucide-react'
 import { FhisipLogo } from '../ui/fhisip-logo'
 
 type MenuItem = {
@@ -29,9 +30,12 @@ export default function Sidebar({
   onMobileClose?: () => void
 }) {
   const pathname = usePathname()
+  const [open, setOpen] = useState<Record<string, boolean>>({})
+
+  const toggle = (id: string) => setOpen((prev) => ({ ...prev, [id]: !prev[id] }))
 
   const content = (
-    <aside className="w-72 h-full bg-[#002B49] text-slate-100 flex flex-col shadow-2xl relative z-30 select-none">
+    <aside className="w-72 h-full bg-[#002B49] text-slate-100 flex flex-col shadow-2xl relative z-30">
       {/* Brand Header */}
       <div className="p-5 border-b border-white/10 bg-gradient-to-b from-black/20 to-transparent">
         <div className="flex items-center justify-between">
@@ -55,11 +59,14 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Navigation - Always Open & Expanded */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-2">
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto no-scrollbar py-4 px-3 space-y-1.5">
+        <div className="px-3 pb-2 text-[10px] font-bold text-amber-400/80 uppercase tracking-widest">Navigasi Utama</div>
+
         {menus.map((menu) => {
           const hasChildren = menu.children && menu.children.length > 0
           const isActive = menu.url && pathname === menu.url
+          const isParentActive = hasChildren && menu.children!.some((c) => c.url === pathname)
 
           if (!hasChildren) {
             return (
@@ -79,35 +86,45 @@ export default function Sidebar({
             )
           }
 
-          return (
-            <div key={menu.id} className="space-y-1 pt-1">
-              {/* Category Section Header */}
-              <div className="flex items-center gap-2 px-3.5 pt-2 pb-1 text-[11px] font-extrabold text-amber-400 uppercase tracking-wider">
-                <DynamicIcon name={menu.icon} className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>{menu.name}</span>
-              </div>
+          const expanded = open[menu.id] ?? isParentActive
 
-              {/* Submenu Links - Always Expanded */}
-              <div className="space-y-1 pl-2">
-                {menu.children!.map((child) => {
-                  const isChildActive = pathname === child.url
-                  return (
-                    <Link
-                      key={child.id}
-                      href={child.url || '#'}
-                      onClick={onMobileClose}
-                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 ${
-                        isChildActive
-                          ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-bold shadow-sm'
-                          : 'text-slate-200 hover:bg-white/10 hover:text-white'
-                      }`}
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full ${isChildActive ? 'bg-slate-950' : 'bg-amber-400/60'}`} />
-                      <span>{child.name}</span>
-                    </Link>
-                  )}
-                )}
-              </div>
+          return (
+            <div key={menu.id}>
+              <button
+                onClick={() => toggle(menu.id)}
+                className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 ${
+                  isParentActive
+                    ? 'bg-white/10 text-white font-bold border-l-4 border-amber-400 pl-2.5'
+                    : 'text-slate-200 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <span className="flex items-center gap-3.5">
+                  <DynamicIcon name={menu.icon} className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>{menu.name}</span>
+                </span>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${expanded ? 'rotate-180 text-amber-400' : ''}`} />
+              </button>
+              {expanded && (
+                <div className="ml-5 mt-1.5 space-y-1 border-l border-amber-400/30 pl-3">
+                  {menu.children!.map((child) => {
+                    const isChildActive = pathname === child.url
+                    return (
+                      <Link
+                        key={child.id}
+                        href={child.url || '#'}
+                        onClick={onMobileClose}
+                        className={`block px-3 py-2 rounded-lg text-xs transition-all duration-150 ${
+                          isChildActive
+                            ? 'text-amber-300 font-bold bg-white/10 shadow-sm'
+                            : 'text-slate-300 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        {child.name}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )
         })}
