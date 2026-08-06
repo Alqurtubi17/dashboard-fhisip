@@ -98,6 +98,8 @@ async function handleProxyRequest(req: Request, code: string) {
         const vars = clientBody.variables ?? clientBody
         if (typeof vars === 'object' && vars !== null && Object.keys(vars).length > 0) {
           let baseUrl = config.targetUrl
+          const isSrsRest = baseUrl.includes('api-mahasiswa-srs.ut.ac.id')
+
           const pathParamKey = Object.keys(vars).find(
             (k) =>
               k === 'noBilling' ||
@@ -121,6 +123,15 @@ async function handleProxyRequest(req: Request, code: string) {
               const isRestFakultas = baseUrl.endsWith('/fakultas') || baseUrl.endsWith('/data-pribadi')
               if (isRestFakultas && k.toLowerCase().includes('fakultas')) {
                 continue
+              }
+
+              // Adjust 1-based page to 0-based page for SRS REST APIs
+              if (isSrsRest && k.toLowerCase() === 'page') {
+                const numPage = Number(v)
+                if (!isNaN(numPage) && numPage >= 1) {
+                  urlObj.searchParams.set(k, String(numPage - 1))
+                  continue
+                }
               }
 
               urlObj.searchParams.set(k, String(v))
