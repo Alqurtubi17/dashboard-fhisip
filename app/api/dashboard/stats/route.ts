@@ -11,19 +11,16 @@ export async function GET() {
       where: { name: { contains: 'FHISIP', mode: 'insensitive' } },
     })
 
-    if (!fhisipProvider) {
-      return NextResponse.json({ error: 'FHISIP Auth Provider not found' }, { status: 404 })
-    }
-
-    const tokenRes = await getExternalToken(fhisipProvider.id)
-    if (!tokenRes.success || !tokenRes.token) {
-      return NextResponse.json({ error: 'Gagal otentikasi penyedia API' }, { status: 401 })
-    }
-
-    const headers = {
+    let headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${tokenRes.token}`,
       'User-Agent': 'Mozilla/5.0',
+    }
+
+    if (fhisipProvider) {
+      const tokenRes = await getExternalToken(fhisipProvider.id)
+      if (tokenRes.success && tokenRes.token) {
+        headers['Authorization'] = `Bearer ${tokenRes.token}`
+      }
     }
 
     // Total Active Students in FHISIP UT across All Active Semesters (Status DP: DA - Aktif)
