@@ -44,7 +44,7 @@ const MENUS: {
     permissionKey: 'akademik.view',
     sort: 3,
     children: [
-      { name: 'Jadwal Tutorial & Ujian', icon: 'Calendar', url: '/akademik/jadwal', permissionKey: 'akademik.view', sort: 1 },
+      { name: 'Jadwal dan Agenda Akademik', icon: 'Calendar', url: '/akademik/jadwal', permissionKey: 'akademik.view', sort: 1 },
       { name: 'Kebutuhan Kelas & Tutor', icon: 'LayoutGrid', url: '/akademik/kelas', permissionKey: 'akademik.view', sort: 2 },
     ],
   },

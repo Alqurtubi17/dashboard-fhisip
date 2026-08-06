@@ -290,7 +290,7 @@ export default function JadwalAkademikPage() {
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 flex items-center gap-2.5">
             <CalendarIcon className="w-7 h-7 text-ut-blue" />
-            Kalender Akademik UT & Agenda FHISIP
+            Jadwal dan Agenda Akademik
           </h1>
           <p className="text-xs text-slate-500 mt-1">
             Jadwal kalender akademik resmi Universitas Terbuka & rincian agenda per jam Dekanat / Kaprodi
