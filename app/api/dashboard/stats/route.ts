@@ -23,21 +23,14 @@ export async function GET() {
       }
     }
 
-    // Total Active Students in FHISIP UT across All Active Semesters (Status DP: DA - Aktif)
+    // Total Active Students in FHISIP UT across All Active Semesters
     const totalMahasiswaAktif = 407950
 
-    // Fetch Total Matakuliah for FHISIP (261 Matkul Unik)
-    let totalMatkul = 261
-    try {
-      const resMk = await fetch(
-        'https://api-mahasiswa-srs.ut.ac.id/api-srs-mahasiswa/v1/data-matakuliah?kodeFakultas=3&limit=1&page=0',
-        { headers }
-      )
-      if (resMk.ok) {
-        const jsonMk = await resMk.json()
-        if (jsonMk.data?.totalItems) totalMatkul = jsonMk.data.totalItems
-      }
-    } catch {}
+    // Total Matakuliah Ditawarkan FHISIP (261 Matkul Unik)
+    const totalMatkul = 261
+
+    // Total Dosen & Tutor Pengampu FHISIP (5.618 Tutor)
+    const totalPengajar = 5618
 
     // Fetch RPL Rekap Stats for FHISIP
     let rplStats = {
@@ -85,7 +78,7 @@ export async function GET() {
       }
     } catch {}
 
-    // Active Student Breakdown across 9 FHISIP Program Studi (All Active Semesters)
+    // Active Student Breakdown across 9 FHISIP Program Studi
     const prodiList = [
       { code: 'HKUM', name: 'S1 Ilmu Hukum', count: 128450 },
       { code: 'IKOM', name: 'S1 Ilmu Komunikasi', count: 76200 },
@@ -102,7 +95,7 @@ export async function GET() {
       success: true,
       data: {
         totalMahasiswa: totalMahasiswaAktif,
-        totalPengajar: 2842,
+        totalPengajar,
         totalProdi: 9,
         totalTutorial: totalMatkul,
         totalYudisium: 2056583,
