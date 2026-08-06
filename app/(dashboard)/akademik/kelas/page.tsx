@@ -9,20 +9,27 @@ import {
   CheckCircle2,
   Eye,
   X,
-  Zap,
   Calculator,
   UserCheck,
-  Award,
+  FileSpreadsheet,
+  Layers,
 } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
+import { useDebounce } from '@/hooks/useDebounce'
 
-type KebutuhanKelasItem = {
+export type KebutuhanKelasItem = {
   id: string
   kodeMatkul: string
   namaMatkul: string
   sks: number
   prodiCode: string
   prodiName: string
+  sipasNonTtm?: number
+  nonSipas?: number
+  ttmSipas?: number
+  tutonSipas?: number
+  jumlahTTM?: number
+  jumlahTuton?: number
   totalMahasiswa: number
   kebutuhanKelas: number
   kebutuhanTutorMin: number
@@ -36,8 +43,6 @@ type Summary = {
   rasioKuota: string
   rasioTutor: string
 }
-
-import { useDebounce } from '@/hooks/useDebounce'
 
 export default function KebutuhanKelasPage() {
   const [items, setItems] = useState<KebutuhanKelasItem[]>([])
@@ -88,15 +93,6 @@ export default function KebutuhanKelasPage() {
 
   useEffect(() => {
     fetchData()
-
-    // Read configured refresh interval from settings (/api-configs)
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('dashboard_refresh_interval') : null
-    const intervalMs = saved !== null ? parseInt(saved, 10) : 60 * 60 * 1000
-
-    if (intervalMs > 0) {
-      const interval = setInterval(fetchData, intervalMs)
-      return () => clearInterval(interval)
-    }
   }, [selectedProdi, debouncedSearchQuery, page, pageSize])
 
   return (
@@ -108,10 +104,10 @@ export default function KebutuhanKelasPage() {
         <div className="relative z-10 space-y-3 max-w-3xl">
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight flex items-center gap-3">
             <LayoutGrid className="w-8 h-8 text-amber-400" />
-            Perencanaan Kebutuhan Kelas & Tutor FHISIP
+            Perencanaan Prediksi Kelas & Tutor FHISIP 2026.1
           </h1>
           <p className="text-sm text-slate-200 leading-relaxed">
-            Perhitungan otomatis jumlah kelas tutorial (50 mhs/kelas) dan estimasi jumlah kebutuhan minimal tutor (maksimal 4 kelas per tutor) di lingkungan FHISIP UT.
+            Prediksi otentik pembentukan kelas tutorial (50 peserta/kelas) dan estimasi kebutuhan minimal tutor (maksimal 4 kelas per tutor) bersumber langsung dari data registrasi FHISIP 2026.1 (Sheet 2 Excel Data Prediksi).
           </p>
         </div>
       </div>
@@ -121,33 +117,33 @@ export default function KebutuhanKelasPage() {
         <div className="card p-5 border-t-4 border-t-ut-navy space-y-2">
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Mata Kuliah</p>
           <p className="text-2xl font-extrabold text-slate-900">
-            {loading ? <span className="inline-block w-16 h-7 bg-slate-200 animate-pulse rounded"></span> : summary.totalMatkul}
+            {loading ? <span className="inline-block w-16 h-7 bg-slate-200 animate-pulse rounded"></span> : summary.totalMatkul.toLocaleString('id-ID')}
           </p>
           <p className="text-[11px] text-slate-500 flex items-center gap-1">
             <BookOpen className="w-3.5 h-3.5 text-ut-blue" />
-            <span>Mata Kuliah Aktif Per Prodi</span>
+            <span>Mata Kuliah Ditawarkan FHISIP</span>
           </p>
         </div>
 
         <div className="card p-5 border-t-4 border-t-amber-500 space-y-2">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Mahasiswa Peserta</p>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Peserta Tuton</p>
           <p className="text-2xl font-extrabold text-amber-900">
             {loading ? <span className="inline-block w-16 h-7 bg-amber-200 animate-pulse rounded"></span> : summary.totalMahasiswa.toLocaleString('id-ID')}
           </p>
           <p className="text-[11px] text-slate-500 flex items-center gap-1">
             <Users className="w-3.5 h-3.5 text-amber-600" />
-            <span>Peserta Terregistrasi Matkul</span>
+            <span>Akumulasi Registrasi Peserta</span>
           </p>
         </div>
 
         <div className="card p-5 border-t-4 border-t-emerald-600 space-y-2">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Kebutuhan Kelas</p>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Prediksi Kelas Tuton</p>
           <p className="text-2xl font-extrabold text-emerald-900">
             {loading ? <span className="inline-block w-16 h-7 bg-emerald-200 animate-pulse rounded"></span> : `${summary.totalKebutuhanKelas.toLocaleString('id-ID')} Kelas`}
           </p>
           <p className="text-[11px] text-slate-500 flex items-center gap-1">
             <Calculator className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Kalkulasi (⌈Total Mhs / 50⌉)</span>
+            <span>Kalkulasi (⌈Total Peserta / 50⌉)</span>
           </p>
         </div>
 
@@ -169,11 +165,11 @@ export default function KebutuhanKelasPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-100">
           <div>
             <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-ut-blue" />
-              Tabel Kebutuhan Kelas & Minimal Tutor per Mata Kuliah & Prodi
+              <FileSpreadsheet className="w-5 h-5 text-ut-blue" />
+              Tabel Prediksi Pembentukan Kelas & Tutor per Mata Kuliah (Excel 2026.1)
             </h2>
             <p className="text-xs text-slate-500">
-              Perhitungan rasio 50 mhs/kelas dan kebutuhan minimal tutor (1 tutor maks 4 kelas)
+              Menampilkan {totalItems.toLocaleString('id-ID')} data prediksi mata kuliah berdasarkan rasio 50 mhs/kelas & maks 4 kelas/tutor
             </p>
           </div>
 
@@ -189,15 +185,15 @@ export default function KebutuhanKelasPage() {
                 className="w-full sm:w-60 pl-3 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy font-semibold text-slate-700"
               >
                 <option value="ALL">Semua Program Studi (9 Prodi)</option>
-                <option value="IPEM">S1 Ilmu Pemerintahan (IPEM)</option>
-                <option value="HKUM">S1 Ilmu Hukum (HKUM)</option>
-                <option value="IKOM">S1 Ilmu Komunikasi (IKOM)</option>
-                <option value="ADPU">S1 Administrasi Publik (ADPU)</option>
-                <option value="ADBI">S1 Administrasi Bisnis (ADBI)</option>
-                <option value="SOSI">S1 Sosiologi (SOSI)</option>
-                <option value="SING">S1 Sastra Inggris (SING)</option>
-                <option value="PUS">S1 Ilmu Perpustakaan (PUS)</option>
-                <option value="PAJAK">S1 Perpajakan (PAJAK)</option>
+                <option value="HKUM">S1 Ilmu Hukum (106 Matkul)</option>
+                <option value="IKOM">S1 Ilmu Komunikasi (97 Matkul)</option>
+                <option value="ADBI">S1 Administrasi Bisnis (94 Matkul)</option>
+                <option value="ADPU">S1 Administrasi Publik (77 Matkul)</option>
+                <option value="IPEM">S1 Ilmu Pemerintahan (79 Matkul)</option>
+                <option value="SING">S1 Sastra Inggris (82 Matkul)</option>
+                <option value="SOSI">S1 Sosiologi (69 Matkul)</option>
+                <option value="PUS">S1 Ilmu Perpustakaan (57 Matkul)</option>
+                <option value="PAJAK">S1 Perpajakan (45 Matkul)</option>
               </select>
             </div>
 
@@ -234,10 +230,10 @@ export default function KebutuhanKelasPage() {
                 <th className="px-4 py-3 font-semibold">Kode Matkul</th>
                 <th className="px-4 py-3 font-semibold">Nama Mata Kuliah</th>
                 <th className="px-4 py-3 font-semibold">Program Studi</th>
-                <th className="px-4 py-3 font-semibold text-center">SKS</th>
-                <th className="px-4 py-3 font-semibold text-center">Total Mahasiswa</th>
-                <th className="px-4 py-3 font-semibold text-center">Kebutuhan Kelas (50 Mhs/Kelas)</th>
-                <th className="px-4 py-3 font-semibold text-center">Kebutuhan Minimal Tutor (Max 4 Kelas/Tutor)</th>
+                <th className="px-4 py-3 font-semibold text-center">Rincian Skema (SIPAS/Non-SIPAS)</th>
+                <th className="px-4 py-3 font-semibold text-center">Total Peserta Tuton</th>
+                <th className="px-4 py-3 font-semibold text-center">Prediksi Kelas (50 Mhs/Kelas)</th>
+                <th className="px-4 py-3 font-semibold text-center">Kebutuhan Minimal Tutor</th>
                 <th className="px-4 py-3 font-semibold text-right">Aksi</th>
               </tr>
             </thead>
@@ -245,7 +241,7 @@ export default function KebutuhanKelasPage() {
               {loading && (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
-                    Memuat data seluruh mata kuliah FHISIP...
+                    Memuat data 706 prediksi kelas FHISIP dari Excel...
                   </td>
                 </tr>
               )}
@@ -266,31 +262,35 @@ export default function KebutuhanKelasPage() {
                         {item.kodeMatkul}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-bold text-slate-900">{item.namaMatkul}</td>
+                    <td className="px-4 py-3 font-bold text-slate-900 max-w-xs">{item.namaMatkul}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
                         <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 font-extrabold text-[10px]">
                           {item.prodiCode}
                         </span>
-                        <span className="text-slate-600 font-medium">{item.prodiName}</span>
+                        <span className="text-slate-600 font-medium truncate max-w-[140px]">{item.prodiName}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-center font-bold text-slate-700">{item.sks} SKS</td>
+                    <td className="px-4 py-3 text-center text-[11px]">
+                      <span className="text-slate-600">
+                        SIPAS: <strong className="text-slate-900">{(item.sipasNonTtm || 0).toLocaleString('id-ID')}</strong> | Non-SIPAS: <strong className="text-slate-900">{(item.nonSipas || 0).toLocaleString('id-ID')}</strong>
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-center">
-                      <span className="font-extrabold text-amber-900 px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200">
-                        {item.totalMahasiswa.toLocaleString('id-ID')} Mhs
+                      <span className="font-extrabold text-amber-900 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200">
+                        {item.totalMahasiswa.toLocaleString('id-ID')} Peserta
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-900 border border-emerald-400/30 font-extrabold text-xs">
                         <Calculator className="w-3.5 h-3.5 text-emerald-600" />
-                        {item.kebutuhanKelas} Kelas
+                        {item.kebutuhanKelas.toLocaleString('id-ID')} Kelas
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-purple-500/10 text-purple-900 border border-purple-400/30 font-extrabold text-xs">
                         <UserCheck className="w-3.5 h-3.5 text-purple-600" />
-                        {item.kebutuhanTutorMin} Tutor Minimal
+                        {item.kebutuhanTutorMin.toLocaleString('id-ID')} Tutor
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -299,7 +299,7 @@ export default function KebutuhanKelasPage() {
                         className="btn-secondary py-1 px-2.5 text-xs inline-flex items-center gap-1.5 font-bold hover:bg-ut-navy hover:text-white transition"
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        <span>Detail Kalkulasi</span>
+                        <span>Rincian</span>
                       </button>
                     </td>
                   </tr>
@@ -330,8 +330,8 @@ export default function KebutuhanKelasPage() {
                   <Calculator className="w-5 h-5 text-ut-navy" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-base">Detail Perhitungan Kelas & Tutor</h3>
-                  <p className="text-xs text-slate-500">Mata Kuliah {selectedItem.kodeMatkul}</p>
+                  <h3 className="font-bold text-slate-900 text-base">Detail Rincian Prediksi Kelas & Tutor</h3>
+                  <p className="text-xs text-slate-500">Mata Kuliah {selectedItem.kodeMatkul} (Excel 2026.1)</p>
                 </div>
               </div>
               <button
@@ -356,27 +356,28 @@ export default function KebutuhanKelasPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pb-2 border-b border-slate-200">
-                <div>
-                  <p className="text-slate-400 font-medium">Total Mahasiswa Terdaftar:</p>
-                  <p className="font-extrabold text-amber-700 text-sm">
-                    {selectedItem.totalMahasiswa.toLocaleString('id-ID')} Mahasiswa
-                  </p>
-                </div>
-                <div>
-                  <p className="text-slate-400 font-medium">Bobot SKS:</p>
-                  <p className="font-extrabold text-slate-900 text-sm">{selectedItem.sks} SKS</p>
+              {/* Rincian Skema Registrasi Mahasiswa */}
+              <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2">
+                <p className="font-bold text-slate-700 flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-ut-blue" />
+                  Rincian Skema Registrasi Peserta Tuton:
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-slate-600 text-[11px]">
+                  <div>• SIPAS Non-TTM: <strong className="text-slate-900">{(selectedItem.sipasNonTtm || 0).toLocaleString('id-ID')} mhs</strong></div>
+                  <div>• Non-SIPAS: <strong className="text-slate-900">{(selectedItem.nonSipas || 0).toLocaleString('id-ID')} mhs</strong></div>
+                  <div>• Tuton SIPAS Semi/Penuh: <strong className="text-slate-900">{(selectedItem.tutonSipas || 0).toLocaleString('id-ID')} mhs</strong></div>
+                  <div>• Total Peserta Tuton: <strong className="text-amber-800">{selectedItem.totalMahasiswa.toLocaleString('id-ID')} mhs</strong></div>
                 </div>
               </div>
 
-              {/* Formula Box 1: Kebutuhan Kelas */}
+              {/* Formula Box 1: Prediksi Kelas */}
               <div className="bg-emerald-50 p-3.5 rounded-xl border border-emerald-200 space-y-1">
                 <p className="font-bold text-emerald-900 text-xs flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  1. Formula Perhitungan Kebutuhan Kelas (50 Mhs/Kelas):
+                  1. Formula Prediksi Kelas (50 Peserta/Kelas):
                 </p>
                 <p className="font-mono text-xs text-emerald-900 font-bold bg-white p-2 rounded border border-emerald-300 text-center">
-                  ⌈{selectedItem.totalMahasiswa.toLocaleString('id-ID')} Mhs ÷ 50 Mhs⌉ = {selectedItem.kebutuhanKelas} Kelas Tutorial
+                  ⌈{selectedItem.totalMahasiswa.toLocaleString('id-ID')} Mhs ÷ 50 Mhs⌉ = {selectedItem.kebutuhanKelas.toLocaleString('id-ID')} Kelas Tuton
                 </p>
               </div>
 
@@ -387,10 +388,10 @@ export default function KebutuhanKelasPage() {
                   2. Formula Kebutuhan Minimal Tutor (Max 4 Kelas/Tutor):
                 </p>
                 <p className="font-mono text-xs text-purple-900 font-bold bg-white p-2 rounded border border-purple-300 text-center">
-                  ⌈{selectedItem.kebutuhanKelas} Kelas ÷ 4 Kelas/Tutor⌉ = {selectedItem.kebutuhanTutorMin} Tutor Minimal
+                  ⌈{selectedItem.kebutuhanKelas.toLocaleString('id-ID')} Kelas ÷ 4 Kelas/Tutor⌉ = {selectedItem.kebutuhanTutorMin.toLocaleString('id-ID')} Tutor Minimal
                 </p>
                 <p className="text-[11px] text-purple-700 pt-0.5">
-                  Setiap 1 tutor dapat mengampu maksimal 4 kelas tutorial, sehingga dibutuhkan minimal <strong>{selectedItem.kebutuhanTutorMin} tutor</strong> untuk mengampu {selectedItem.kebutuhanKelas} kelas.
+                  Setiap 1 tutor mengampu maksimal 4 kelas, sehingga dibutuhkan minimal <strong>{selectedItem.kebutuhanTutorMin.toLocaleString('id-ID')} tutor</strong> untuk mengampu {selectedItem.kebutuhanKelas.toLocaleString('id-ID')} kelas.
                 </p>
               </div>
             </div>
