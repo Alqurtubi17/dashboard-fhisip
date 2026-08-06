@@ -26,6 +26,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  ShieldCheck,
 } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -81,6 +82,9 @@ export default function KebutuhanKelasPage() {
     totalKebutuhanTutorMin: 0,
   })
 
+  // User session state for role check
+  const [currentUser, setCurrentUser] = useState<any>(null)
+
   // Filters & Sorting State
   const [selectedProdi, setSelectedProdi] = useState<string>('ALL')
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -102,6 +106,23 @@ export default function KebutuhanKelasPage() {
   const [uploading, setUploading] = useState<boolean>(false)
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState<string>('')
   const [uploadErrorMsg, setUploadErrorMsg] = useState<string>('')
+
+  // Load current user profile for role verification
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && !data.error) setCurrentUser(data)
+      })
+      .catch(() => {})
+  }, [])
+
+  // Check if current user has Super Admin or Admin access
+  const isSuperAdmin =
+    Boolean(currentUser) &&
+    (currentUser?.role?.toLowerCase().includes('admin') ||
+      currentUser?.roleName?.toLowerCase().includes('admin') ||
+      currentUser?.permissions?.includes('*'))
 
   const fetchData = async () => {
     setLoading(true)
@@ -274,15 +295,17 @@ export default function KebutuhanKelasPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Upload Excel Button */}
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="btn-secondary py-2 px-3.5 text-xs font-bold inline-flex items-center justify-center gap-1.5 rounded-xl shadow-xs hover:shadow-md transition bg-white border border-slate-300 text-ut-navy hover:bg-slate-50"
-            title="Upload File Excel Baru (.xlsx)"
-          >
-            <Upload className="w-4 h-4 text-ut-blue" />
-            <span>Upload Excel</span>
-          </button>
+          {/* Upload Excel Button - Super Admin Only */}
+          {isSuperAdmin && (
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="btn-secondary py-2 px-3.5 text-xs font-bold inline-flex items-center justify-center gap-1.5 rounded-xl shadow-xs hover:shadow-md transition bg-white border border-slate-300 text-ut-navy hover:bg-slate-50"
+              title="Khusus Super Admin: Upload File Excel Baru (.xlsx)"
+            >
+              <Upload className="w-4 h-4 text-ut-blue" />
+              <span>Upload Excel</span>
+            </button>
+          )}
 
           {/* Download Excel Button */}
           <button
@@ -513,7 +536,7 @@ export default function KebutuhanKelasPage() {
                       </p>
                       <p className="text-xs text-slate-400">
                         {selectedMasa === '20262'
-                          ? 'Data registrasi 2026.2 belum dibuka / belum diinputkan ke sistem database.'
+                          ? 'Data registrasi 2026.2 belum dibuka / belum diinputkan ke sistem.'
                           : 'Coba ubah kata kunci atau filter program studi.'}
                       </p>
                     </div>
@@ -604,8 +627,8 @@ export default function KebutuhanKelasPage() {
         )}
       </div>
 
-      {/* UPLOAD EXCEL MODAL */}
-      {showUploadModal && (
+      {/* UPLOAD EXCEL MODAL - Super Admin Only */}
+      {showUploadModal && isSuperAdmin && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -614,8 +637,11 @@ export default function KebutuhanKelasPage() {
                   <FileUp className="w-5 h-5 text-ut-navy" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-base">Upload File Excel Prediksi Kelas</h3>
-                  <p className="text-xs text-slate-500">Impor data rekap kelas & tutor per masa akademik</p>
+                  <h3 className="font-bold text-slate-900 text-base">Unggah Data Prediksi Pembentukan Kelas</h3>
+                  <p className="text-xs text-slate-500 flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 inline" />
+                    Otoritas Super Admin
+                  </p>
                 </div>
               </div>
               <button
@@ -716,7 +742,7 @@ export default function KebutuhanKelasPage() {
                   ) : (
                     <>
                       <Upload className="w-4 h-4" />
-                      <span>Unggah & Simpan ke DB</span>
+                      <span>Simpan Data Prediksi</span>
                     </>
                   )}
                 </button>
