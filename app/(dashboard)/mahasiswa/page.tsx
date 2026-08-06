@@ -289,7 +289,7 @@ export default function MahasiswaPage() {
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-semibold text-slate-800">Data Mahasiswa</h1>
-        <p className="text-slate-500 text-sm">Data mahasiswa terintegrasi langsung via Proxy API SRS UT</p>
+        <p className="text-slate-500 text-sm">Data mahasiswa terdaftar di lingkungan FHISIP Universitas Terbuka</p>
       </div>
 
       {/* Stats Cards */}
@@ -325,7 +325,7 @@ export default function MahasiswaPage() {
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               {loading
-                ? 'Memuat data mahasiswa live dari API SRS UT...'
+                ? 'Memuat data mahasiswa...'
                 : hasActiveFilters
                 ? `Hasil Filter / Pencarian: ${totalFilteredCount} mahasiswa ditemukan`
                 : `Halaman ${currentPage} · Menampilkan ${paginatedStudents.length} data per halaman · Total ${totalFilteredCount.toLocaleString('id-ID')} data mahasiswa`}
@@ -514,7 +514,7 @@ export default function MahasiswaPage() {
                 <tr>
                   <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
                     <Loader2 className="w-5 h-5 animate-spin inline-block mr-2 text-ut-navy" />
-                    Memuat data mahasiswa live dari API SRS UT...
+                    Memuat data mahasiswa...
                   </td>
                 </tr>
               )}

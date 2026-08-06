@@ -215,7 +215,7 @@ export default function DashboardPage() {
           {
             title: 'Layanan Tutorial Aktif',
             value: stats.totalTutorial.toLocaleString('id-ID'),
-            desc: 'Mata Kuliah Aktif SRS',
+            desc: 'Mata Kuliah Aktif Ditawarkan',
             icon: UserCheck,
             color: 'bg-amber-500 text-slate-950',
           },

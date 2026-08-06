@@ -74,7 +74,7 @@ const INITIAL_AGENDAS: AgendaItem[] = [
     endTime: '23:59',
     category: 'ut_academic',
     organizer: 'Universitas Terbuka Pusat',
-    location: 'Portal SRS UT (api-srs.ut.ac.id)',
+    location: 'Portal Layanan Akademik UT',
     description: 'Batas akhir registrasi dan input mata kuliah semester berjalan 2026.1.',
   },
   {
@@ -129,7 +129,7 @@ const INITIAL_AGENDAS: AgendaItem[] = [
     endTime: '23:59',
     category: 'ut_academic',
     organizer: 'Universitas Terbuka Pusat',
-    location: 'Portal SRS UT & SIA UT',
+    location: 'Portal Layanan Akademik UT',
     description: 'Pengumuman Kartu Hasil Studi (KHS) dan nilai semester mahasiswa.',
   },
 ]
