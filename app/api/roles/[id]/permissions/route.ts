@@ -23,7 +23,7 @@ function extractModuleSlug(menu: { name: string; url?: string | null; permission
   return { slug, label: menu.name }
 }
 
-// GET -> returns all permissions grouped strictly by active sidebar navigation menus in database
+// GET -> returns all permissions grouped strictly in the exact order of active sidebar navigation menus
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const role = await prisma.role.findFirst({
@@ -34,27 +34,36 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
     if (!role) return NextResponse.json({ error: 'Role tidak ditemukan' }, { status: 404 })
 
-    // 1. Fetch all active menus from database to dynamically synchronize permissions with sidebar navigation
-    const dbMenus = await prisma.menu.findMany({ orderBy: { sort: 'asc' } })
+    // 1. Fetch parent menus and children from PostgreSQL ordered strictly by sidebar sort order
+    const dbMenus = await prisma.menu.findMany({
+      where: { parentId: null },
+      orderBy: { sort: 'asc' },
+      include: {
+        children: {
+          orderBy: { sort: 'asc' },
+        },
+      },
+    })
+
+    const orderedModules: { slug: string; label: string }[] = []
     const activeSidebarModules = new Map<string, string>()
 
-    // Identify active sidebar menu modules (leaf child menus and standalone parent menus with URL)
-    for (const menu of dbMenus) {
-      // If it's a child menu OR a standalone parent menu with a valid URL
-      if (menu.url && menu.url !== '#' && menu.url !== 'null') {
-        const { slug, label } = extractModuleSlug(menu)
-        if (slug && !activeSidebarModules.has(slug)) {
-          activeSidebarModules.set(slug, label)
+    for (const parent of dbMenus) {
+      if (parent.children && parent.children.length > 0) {
+        for (const child of parent.children) {
+          const { slug } = extractModuleSlug(child)
+          const label = `${child.name} (${parent.name})`
+          if (slug && !activeSidebarModules.has(slug)) {
+            activeSidebarModules.set(slug, label)
+            orderedModules.push({ slug, label })
+          }
         }
-      }
-    }
-
-    // Fallback: If no URL-based menus found, include all menus
-    if (activeSidebarModules.size === 0) {
-      for (const menu of dbMenus) {
-        const { slug, label } = extractModuleSlug(menu)
+      } else if (parent.url && parent.url !== '#' && parent.url !== 'null') {
+        const { slug } = extractModuleSlug(parent)
+        const label = parent.name
         if (slug && !activeSidebarModules.has(slug)) {
           activeSidebarModules.set(slug, label)
+          orderedModules.push({ slug, label })
         }
       }
     }
@@ -62,33 +71,38 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const dynamicModuleLabels: Record<string, string> = {}
 
     // Auto-create permission entries for all active sidebar menus if missing
-    for (const [slug, label] of Array.from(activeSidebarModules.entries())) {
-      dynamicModuleLabels[slug] = label
+    for (const item of orderedModules) {
+      dynamicModuleLabels[item.slug] = item.label
 
       for (const action of ACTIONS) {
         await prisma.permission.upsert({
-          where: { module_action: { module: slug, action } },
-          update: { label: `${label} - ${action}` },
+          where: { module_action: { module: item.slug, action } },
+          update: { label: `${item.label} - ${action}` },
           create: {
-            module: slug,
+            module: item.slug,
             action,
-            label: `${label} - ${action}`,
+            label: `${item.label} - ${action}`,
           },
         })
       }
     }
 
-    // 2. Fetch all permissions from PostgreSQL and filter ONLY to active sidebar modules
+    // 2. Fetch all permissions from PostgreSQL and group them in exact sidebar sequence
     const allPermissions = await prisma.permission.findMany({ orderBy: [{ module: 'asc' }, { action: 'asc' }] })
     const rolePermissions = await prisma.rolePermission.findMany({ where: { roleId: role.id } })
     const checkedIds = new Set(rolePermissions.map((rp) => rp.permissionId))
 
-    const filteredPermissions = allPermissions.filter((p) => activeSidebarModules.has(p.module))
-
     const grouped: Record<string, { id: string; action: string; checked: boolean }[]> = {}
-    for (const p of filteredPermissions) {
-      if (!grouped[p.module]) grouped[p.module] = []
-      grouped[p.module].push({ id: p.id, action: p.action, checked: checkedIds.has(p.id) || role.isSystem })
+
+    for (const item of orderedModules) {
+      const perms = allPermissions.filter((p) => p.module === item.slug)
+      if (perms.length > 0) {
+        grouped[item.slug] = perms.map((p) => ({
+          id: p.id,
+          action: p.action,
+          checked: checkedIds.has(p.id) || role.isSystem,
+        }))
+      }
     }
 
     return NextResponse.json({
