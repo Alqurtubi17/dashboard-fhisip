@@ -37,6 +37,8 @@ type Summary = {
   rasioTutor: string
 }
 
+import { useDebounce } from '@/hooks/useDebounce'
+
 export default function KebutuhanKelasPage() {
   const [items, setItems] = useState<KebutuhanKelasItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,6 +54,7 @@ export default function KebutuhanKelasPage() {
   // Filters & Pagination State
   const [selectedProdi, setSelectedProdi] = useState<string>('ALL')
   const [searchQuery, setSearchQuery] = useState<string>('')
+  const debouncedSearchQuery = useDebounce(searchQuery, 400)
   const [page, setPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(10)
   const [totalItems, setTotalItems] = useState<number>(0)
@@ -63,7 +66,7 @@ export default function KebutuhanKelasPage() {
     setLoading(true)
     try {
       const url = `/api/dashboard/kebutuhan-kelas?prodi=${selectedProdi}&query=${encodeURIComponent(
-        searchQuery
+        debouncedSearchQuery
       )}&page=${page}&pageSize=${pageSize}`
       const res = await fetch(url)
       if (res.ok) {
@@ -94,7 +97,7 @@ export default function KebutuhanKelasPage() {
       const interval = setInterval(fetchData, intervalMs)
       return () => clearInterval(interval)
     }
-  }, [selectedProdi, searchQuery, page, pageSize])
+  }, [selectedProdi, debouncedSearchQuery, page, pageSize])
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">

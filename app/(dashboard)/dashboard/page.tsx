@@ -57,6 +57,8 @@ type LkamItem = {
   noSk: string
 }
 
+import { useDebounce } from '@/hooks/useDebounce'
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     totalMahasiswa: 407950,
@@ -89,6 +91,7 @@ export default function DashboardPage() {
   const [lkamLoading, setLkamLoading] = useState(true)
   const [selectedProdiFilter, setSelectedProdiFilter] = useState<string>('ALL')
   const [lkamSearchQuery, setLkamSearchQuery] = useState<string>('')
+  const debouncedLkamSearchQuery = useDebounce(lkamSearchQuery, 400)
   const [lkamPage, setLkamPage] = useState<number>(1)
   const [lkamPageSize, setLkamPageSize] = useState<number>(5)
   const [totalLkamItems, setTotalLkamItems] = useState<number>(0)
@@ -115,7 +118,7 @@ export default function DashboardPage() {
     setLkamLoading(true)
     try {
       const url = `/api/dashboard/lkam?prodi=${selectedProdiFilter}&query=${encodeURIComponent(
-        lkamSearchQuery
+        debouncedLkamSearchQuery
       )}&page=${lkamPage}&pageSize=${lkamPageSize}`
       const res = await fetch(url)
       if (res.ok) {
@@ -147,7 +150,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchLkamData()
-  }, [selectedProdiFilter, lkamSearchQuery, lkamPage, lkamPageSize])
+  }, [selectedProdiFilter, debouncedLkamSearchQuery, lkamPage, lkamPageSize])
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">

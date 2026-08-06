@@ -38,6 +38,8 @@ const PRODI_LIST = [
   { code: 'PAJAK', name: 'S1 Perpajakan' },
 ]
 
+import { useDebounce } from '@/hooks/useDebounce'
+
 export default function MahasiswaPage() {
   const [studentPool, setStudentPool] = useState<StudentItem[]>([])
   const [totalCount, setTotalCount] = useState<number>(407950)
@@ -54,6 +56,8 @@ export default function MahasiswaPage() {
   const [selectedSemester, setSelectedSemester] = useState<string>('ALL')
   const [minIpk, setMinIpk] = useState<string>('ALL')
   const [searchQuery, setSearchQuery] = useState<string>('')
+  const debouncedSearchQuery = useDebounce(searchQuery, 350)
+  const lookupCacheRef = useRef<Map<string, StudentItem>>(new Map())
   const [filterOpen, setFilterOpen] = useState(false)
   const filterRef = useRef<HTMLDivElement>(null)
 
@@ -143,9 +147,9 @@ export default function MahasiswaPage() {
     fetchStudentBatch(0, 5000, true)
   }, [])
 
-  // Direct search lookup via API: if user searches NIM, query server directly if not in pool
+  // Direct search lookup via API (debounced + cached to avoid API load)
   useEffect(() => {
-    const trimmed = searchQuery.trim()
+    const trimmed = debouncedSearchQuery.trim()
     if (!trimmed || trimmed.length < 3) return
 
     const isNim = /^\d{3,9}$/.test(trimmed)
@@ -153,6 +157,12 @@ export default function MahasiswaPage() {
 
     const exists = studentPool.some((s) => s.nim === trimmed)
     if (exists) return
+
+    if (lookupCacheRef.current.has(trimmed)) {
+      const cached = lookupCacheRef.current.get(trimmed)!
+      setStudentPool((prev) => [cached, ...prev.filter((s) => s.nim !== cached.nim)])
+      return
+    }
 
     const lookupNim = async () => {
       setSearchingNim(true)
@@ -186,6 +196,7 @@ export default function MahasiswaPage() {
                   ? data.alamatEmailAlternatif
                   : '-',
             }
+            lookupCacheRef.current.set(trimmed, student)
             setStudentPool((prev) => [student, ...prev.filter((s) => s.nim !== student.nim)])
           }
         }
@@ -196,11 +207,10 @@ export default function MahasiswaPage() {
       }
     }
 
-    const timer = setTimeout(lookupNim, 250)
-    return () => clearTimeout(timer)
-  }, [searchQuery, studentPool])
+    lookupNim()
+  }, [debouncedSearchQuery, studentPool])
 
-  // Filter student pool
+  // Filter student pool using debounced search
   const filteredStudents = useMemo(() => {
     let result = studentPool
 
@@ -238,8 +248,8 @@ export default function MahasiswaPage() {
       result = result.filter((s) => parseFloat(s.ipk) >= min)
     }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase()
+    if (debouncedSearchQuery.trim()) {
+      const q = debouncedSearchQuery.trim().toLowerCase()
       result = result.filter(
         (s) =>
           s.nim.toLowerCase().includes(q) ||
@@ -251,7 +261,7 @@ export default function MahasiswaPage() {
     }
 
     return result
-  }, [studentPool, selectedProdi, selectedStatus, selectedSemester, minIpk, searchQuery])
+  }, [studentPool, selectedProdi, selectedStatus, selectedSemester, minIpk, debouncedSearchQuery])
 
   // Reset page to 1 when filters or search change
   const handleSearchChange = (val: string) => {

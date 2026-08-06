@@ -21,6 +21,7 @@ import {
   Search,
 } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
+import { useDebounce } from '@/hooks/useDebounce'
 
 type Provider = {
   id: string
@@ -420,19 +421,20 @@ export default function ApiConfigsPage() {
 
 
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
   const filteredProviders = providers.filter(
     (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.loginUrl.toLowerCase().includes(searchQuery.toLowerCase())
+      p.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      p.loginUrl.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
   )
 
   const filteredConfigs = configs.filter(
     (c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.targetUrl.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.provider?.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+      c.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      c.code.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      c.targetUrl.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      (c.provider?.name || '').toLowerCase().includes(debouncedSearchQuery.toLowerCase())
   )
 
   const paginatedProviders = filteredProviders.slice((provPage - 1) * provPageSize, provPage * provPageSize)

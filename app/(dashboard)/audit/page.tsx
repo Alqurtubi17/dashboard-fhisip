@@ -47,10 +47,13 @@ function parseUserAgent(ua: string | null): string {
   return `${browser} • ${os}`
 }
 
+import { useDebounce } from '@/hooks/useDebounce'
+
 export default function AuditLogPage() {
   const [logs, setLogs] = useState<AuditLogItem[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
@@ -88,11 +91,11 @@ export default function AuditLogPage() {
 
   const filteredLogs = logs.filter(
     (log) =>
-      log.action.toLowerCase().includes(search.toLowerCase()) ||
-      (log.user?.name && log.user.name.toLowerCase().includes(search.toLowerCase())) ||
-      (log.user?.email && log.user.email.toLowerCase().includes(search.toLowerCase())) ||
-      (log.ip && log.ip.includes(search)) ||
-      formatIp(log.ip).toLowerCase().includes(search.toLowerCase())
+      log.action.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      (log.user?.name && log.user.name.toLowerCase().includes(debouncedSearch.toLowerCase())) ||
+      (log.user?.email && log.user.email.toLowerCase().includes(debouncedSearch.toLowerCase())) ||
+      (log.ip && log.ip.includes(debouncedSearch)) ||
+      formatIp(log.ip).toLowerCase().includes(debouncedSearch.toLowerCase())
   )
 
   const paginatedLogs = filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize)

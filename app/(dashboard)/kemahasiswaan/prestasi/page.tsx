@@ -28,11 +28,14 @@ type PrestasiItem = {
   simkatmawaStatus: 'DISUBMIT' | 'TERVERIFIKASI' | 'DITOLAK'
 }
 
+import { useDebounce } from '@/hooks/useDebounce'
+
 export default function PrestasiPage() {
   const [items, setItems] = useState<PrestasiItem[]>([])
   const [loading, setLoading] = useState(true)
   const [prodiFilter, setProdiFilter] = useState('ALL')
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearchQuery = useDebounce(searchQuery, 400)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [selectedItem, setSelectedItem] = useState<PrestasiItem | null>(null)
@@ -40,7 +43,7 @@ export default function PrestasiPage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/kemahasiswaan/prestasi?prodi=${prodiFilter}&query=${encodeURIComponent(searchQuery)}`)
+      const res = await fetch(`/api/kemahasiswaan/prestasi?prodi=${prodiFilter}&query=${encodeURIComponent(debouncedSearchQuery)}`)
       if (res.ok) {
         const json = await res.json()
         setItems(json.data || [])
@@ -54,7 +57,7 @@ export default function PrestasiPage() {
 
   useEffect(() => {
     loadData()
-  }, [prodiFilter, searchQuery])
+  }, [prodiFilter, debouncedSearchQuery])
 
   const paginatedItems = items.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 

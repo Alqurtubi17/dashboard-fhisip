@@ -32,11 +32,14 @@ const userSchema = z.object({
 })
 type UserForm = z.infer<typeof userSchema>
 
+import { useDebounce } from '@/hooks/useDebounce'
+
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [roles, setRoles] = useState<RoleOption[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -123,9 +126,9 @@ export default function UsersPage() {
 
   const filteredUsers = users.filter(
     (u) =>
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      u.role.name.toLowerCase().includes(search.toLowerCase())
+      u.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      u.email.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      u.role.name.toLowerCase().includes(debouncedSearch.toLowerCase())
   )
 
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize)
