@@ -117,12 +117,13 @@ async function handleProxyRequest(req: Request, code: string) {
           const urlObj = new URL(baseUrl)
           for (const [k, v] of Object.entries(vars)) {
             if (k !== pathParamKey && v !== undefined && v !== null && v !== '') {
-              urlObj.searchParams.set(k, String(v))
-              // Auto alias camelCase to snake_case for max API compatibility
-              const snakeKey = k.replace(/([A-Z])/g, '_$1').toLowerCase()
-              if (snakeKey !== k && !urlObj.searchParams.has(snakeKey)) {
-                urlObj.searchParams.set(snakeKey, String(v))
+              // Exclude parameters that cause upstream REST errors (like sending kodeFakultas to /v1/fakultas or /v1/data-pribadi)
+              const isRestFakultas = baseUrl.endsWith('/fakultas') || baseUrl.endsWith('/data-pribadi')
+              if (isRestFakultas && k.toLowerCase().includes('fakultas')) {
+                continue
               }
+
+              urlObj.searchParams.set(k, String(v))
             }
           }
           finalTargetUrl = urlObj.toString()
