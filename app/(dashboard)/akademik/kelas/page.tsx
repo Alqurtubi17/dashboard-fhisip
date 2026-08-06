@@ -241,7 +241,7 @@ export default function KebutuhanKelasPage() {
               {loading && (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
-                    Memuat data 706 prediksi kelas FHISIP dari Excel...
+                    Memuat data prediksi kelas & tutor FHISIP dari API...
                   </td>
                 </tr>
               )}
