@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       email: true,
       status: true,
       roleId: true,
-      role: { select: { id: true, name: true, slug: true } },
+      role: { select: { id: true, name: true, slug: true, isSystem: true } },
       createdAt: true,
     },
   })
@@ -38,6 +38,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const existing = await prisma.user.findUnique({ where: { id: params.id }, include: { role: true } })
   if (!existing) return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 })
+
+  // Protect Super Admin from being deactivated
+  if (
+    (existing.role.isSystem || existing.role.slug === 'superadmin' || existing.email === 'admin@kampus.ac.id') &&
+    parsed.data.status === 'INACTIVE'
+  ) {
+    return NextResponse.json({ error: 'Akun Super Admin tidak dapat dinonaktifkan' }, { status: 403 })
+  }
 
   if (parsed.data.email && parsed.data.email !== existing.email) {
     const emailTaken = await prisma.user.findUnique({ where: { email: parsed.data.email } })
@@ -65,7 +73,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       email: true,
       status: true,
       roleId: true,
-      role: { select: { id: true, name: true, slug: true } },
+      role: { select: { id: true, name: true, slug: true, isSystem: true } },
       createdAt: true,
     },
   })
@@ -81,8 +89,16 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: 'Tidak dapat menghapus akun sendiri' }, { status: 400 })
   }
 
-  const user = await prisma.user.findUnique({ where: { id: params.id } })
+  const user = await prisma.user.findUnique({ where: { id: params.id }, include: { role: true } })
   if (!user) return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 })
+
+  // Protect Super Admin from deletion
+  if (user.role.isSystem || user.role.slug === 'superadmin' || user.email === 'admin@kampus.ac.id') {
+    return NextResponse.json(
+      { error: 'Akun Super Admin bersifat sistem dan tidak dapat dihapus' },
+      { status: 403 }
+    )
+  }
 
   await prisma.user.delete({ where: { id: params.id } })
   await createAuditLog(`HAPUS_USER: ${user.name}`, req)

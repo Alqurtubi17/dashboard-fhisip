@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, UserCog, Trash2, Pencil, Search, X, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react'
+import { Plus, UserCog, Trash2, Pencil, Search, X, CheckCircle, XCircle, Eye, EyeOff, Lock } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 
 type RoleOption = {
   id: string
   name: string
   slug: string
+  isSystem?: boolean
 }
 
 type User = {
@@ -231,13 +232,22 @@ export default function UsersPage() {
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => setDeleteTarget(user)}
-                        className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500"
-                        title="Hapus User"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {user.role?.isSystem || user.role?.slug === 'superadmin' || user.email === 'admin@kampus.ac.id' ? (
+                        <span
+                          className="p-2 text-slate-300 cursor-not-allowed inline-flex items-center"
+                          title="Akun Super Admin Terproteksi (Tidak dapat dihapus)"
+                        >
+                          <Lock className="w-4 h-4" />
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setDeleteTarget(user)}
+                          className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500"
+                          title="Hapus User"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
