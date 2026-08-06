@@ -146,6 +146,54 @@ async function handleProxyRequest(req: Request, code: string) {
       responseJson = { raw: responseText }
     }
 
+    // Smart Proxy Filtering for REST APIs
+    const vars = clientBody.variables ?? clientBody ?? {}
+    const filterFakultas = vars.kodeFakultas ?? vars.kode_fakultas ?? vars.fakultas
+    const filterProdi = vars.kodeProdi ?? vars.kode_program_studi ?? vars.prodi
+    const filterSearch = vars.search ?? vars.q
+
+    if (responseJson && typeof responseJson === 'object') {
+      const dataContainer = responseJson.data?.dataPribadi
+        ? responseJson.data
+        : responseJson.dataPribadi
+        ? responseJson
+        : null
+
+      if (dataContainer && Array.isArray(dataContainer.dataPribadi)) {
+        let list = dataContainer.dataPribadi
+
+        if (filterFakultas !== undefined && filterFakultas !== null && filterFakultas !== '') {
+          const fkStr = String(filterFakultas).trim().toUpperCase()
+          list = list.filter((m: any) => {
+            const mFakKode = String(m.info_ut?.program_studi?.fakultas?.kode_fakultas || '').toUpperCase()
+            const mFakSingk = String(m.info_ut?.program_studi?.fakultas?.singkatan || '').toUpperCase()
+            return mFakKode === fkStr || mFakSingk === fkStr
+          })
+        }
+
+        if (filterProdi !== undefined && filterProdi !== null && filterProdi !== '') {
+          const prStr = String(filterProdi).trim().toUpperCase()
+          list = list.filter((m: any) => {
+            const mProdiKode = String(m.info_ut?.program_studi?.kode_program_studi || '').toUpperCase()
+            const mProdiNama = String(m.info_ut?.program_studi?.nama_program_studi || '').toUpperCase()
+            return mProdiKode === prStr || mProdiNama.includes(prStr)
+          })
+        }
+
+        if (filterSearch !== undefined && filterSearch !== null && filterSearch !== '') {
+          const sStr = String(filterSearch).trim().toUpperCase()
+          list = list.filter((m: any) => {
+            const nama = String(m.nama_mahasiswa || '').toUpperCase()
+            const nim = String(m.nim || '').toUpperCase()
+            return nama.includes(sStr) || nim.includes(sStr)
+          })
+        }
+
+        dataContainer.dataPribadi = list
+        dataContainer.totalItems = list.length
+      }
+    }
+
     return NextResponse.json(responseJson, { status: targetRes.status })
   } catch (error: any) {
     return NextResponse.json(
