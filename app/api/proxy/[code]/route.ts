@@ -146,7 +146,7 @@ async function handleProxyRequest(req: Request, code: string) {
       responseJson = { raw: responseText }
     }
 
-    // Smart Proxy Filtering for REST APIs (Deep-Path Traversal into dataPribadi array)
+    // Smart Proxy Filtering for REST APIs (Deep-Path Traversal into dataPribadi / dataFakultas arrays)
     const vars = clientBody.variables ?? clientBody ?? {}
     const filterFakultas = vars.kodeFakultas ?? vars.kode_fakultas ?? vars.fakultas
     const filterProdi = vars.kodeProdi ?? vars.kode_program_studi ?? vars.prodi
@@ -165,6 +165,14 @@ async function handleProxyRequest(req: Request, code: string) {
         containerObj = responseJson
         targetArray = responseJson.dataPribadi
         arrayKey = 'dataPribadi'
+      } else if (Array.isArray(responseJson.data?.dataFakultas)) {
+        containerObj = responseJson.data
+        targetArray = responseJson.data.dataFakultas
+        arrayKey = 'dataFakultas'
+      } else if (Array.isArray(responseJson.dataFakultas)) {
+        containerObj = responseJson
+        targetArray = responseJson.dataFakultas
+        arrayKey = 'dataFakultas'
       } else if (Array.isArray(responseJson.data)) {
         containerObj = responseJson
         targetArray = responseJson.data
@@ -226,8 +234,8 @@ async function handleProxyRequest(req: Request, code: string) {
         if (filterSearch !== undefined && filterSearch !== null && filterSearch !== '') {
           const sStr = String(filterSearch).trim().toUpperCase()
           list = list.filter((m: any) => {
-            const nama = String(m.nama_mahasiswa || m.nama || '').toUpperCase()
-            const nim = String(m.nim || '').toUpperCase()
+            const nama = String(m.nama_mahasiswa || m.nama_fakultas || m.nama || '').toUpperCase()
+            const nim = String(m.nim || m.kode_fakultas || '').toUpperCase()
             return nama.includes(sStr) || nim.includes(sStr)
           })
         }
