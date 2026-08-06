@@ -26,8 +26,8 @@ export async function GET() {
     // Total Active Students in FHISIP UT across All Active Semesters (Status DP: DA - Aktif)
     const totalMahasiswaAktif = 407950
 
-    // Fetch Total Matakuliah for FHISIP (kodeFakultas=3)
-    let totalMatkul = 925
+    // Fetch Total Matakuliah for FHISIP (261 Matkul Unik)
+    let totalMatkul = 261
     try {
       const resMk = await fetch(
         'https://api-mahasiswa-srs.ut.ac.id/api-srs-mahasiswa/v1/data-matakuliah?kodeFakultas=3&limit=1&page=0',

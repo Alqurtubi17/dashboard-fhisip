@@ -174,17 +174,6 @@ export default function DashboardPage() {
           <p className="text-sm text-slate-200 leading-relaxed">
             Pusat kendali administrasi akademik dan pengelolaan layanan mahasiswa Pendidikan Tinggi Terbuka dan Jarak Jauh (PTTJJ) Universitas Terbuka.
           </p>
-
-          <div className="pt-2 flex flex-wrap items-center gap-3 text-xs">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/15">
-              <Globe2 className="w-4 h-4 text-amber-400" />
-              <span>Jangkauan 39 UT Daerah</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/15">
-              <Award className="w-4 h-4 text-amber-400" />
-              <span>Akreditasi Unggul & Terakreditasi International</span>
-            </div>
-          </div>
         </div>
       </div>
 
