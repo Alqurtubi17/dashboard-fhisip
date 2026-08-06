@@ -160,8 +160,11 @@ async function main() {
     })
   }
 
-  // 5. Prediksi Kelas per Masa Akademik (20261 & 20262)
-  console.log('Seeding Prediksi Kelas untuk 2026.1 dan 2026.2 di PostgreSQL...')
+  // 5. Prediksi Kelas per Masa Akademik (Authentic 20261 Only)
+  console.log('Seeding Prediksi Kelas untuk 2026.1 di PostgreSQL...')
+  // Clean up any 20262 dummy records if present
+  await (prisma as any).prediksiKelas.deleteMany({ where: { masa: '20262' } })
+
   const items20261 = fhisipPrediksiData.map((item: any) => ({
     masa: '20261',
     kodeMatkul: item.kodeMatkul,
@@ -185,44 +188,6 @@ async function main() {
       where: { masa_kodeMatkul: { masa: '20261', kodeMatkul: item.kodeMatkul } },
       update: item,
       create: item,
-    })
-  }
-
-  // Generate 20262 for comparison (with simulated registration shift e.g. +8% to +15% growth in some courses)
-  for (const item of items20261) {
-    let hash = 0
-    for (let i = 0; i < item.kodeMatkul.length; i++) hash += item.kodeMatkul.charCodeAt(i)
-    const factor = (hash % 10 > 4) ? 1.12 : 0.94
-
-    const newSipasNonTtm = Math.round((item.sipasNonTtm || 100) * factor)
-    const newNonSipas = Math.round((item.nonSipas || 50) * factor)
-    const newTutonSipas = Math.round((item.tutonSipas || 10) * factor)
-    const newTotalMhs = newSipasNonTtm + newNonSipas + newTutonSipas
-    const newKebutuhanKelas = Math.ceil(newTotalMhs / 50)
-    const newKebutuhanTutor = Math.ceil(newKebutuhanKelas / 4)
-
-    const item20262 = {
-      masa: '20262',
-      kodeMatkul: item.kodeMatkul,
-      namaMatkul: item.namaMatkul,
-      sks: item.sks,
-      prodiCode: item.prodiCode,
-      prodiName: item.prodiName,
-      sipasNonTtm: newSipasNonTtm,
-      nonSipas: newNonSipas,
-      ttmSipas: item.ttmSipas,
-      tutonSipas: newTutonSipas,
-      jumlahTTM: item.jumlahTTM,
-      jumlahTuton: newTotalMhs,
-      totalMahasiswa: newTotalMhs,
-      kebutuhanKelas: newKebutuhanKelas,
-      kebutuhanTutorMin: newKebutuhanTutor,
-    }
-
-    await (prisma as any).prediksiKelas.upsert({
-      where: { masa_kodeMatkul: { masa: '20262', kodeMatkul: item.kodeMatkul } },
-      update: item20262,
-      create: item20262,
     })
   }
 

@@ -156,7 +156,7 @@ export default function KebutuhanKelasPage() {
               className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl font-bold text-ut-navy focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
             >
               <option value="20261">Masa 2026.1 (Ganjil)</option>
-              <option value="20262">Masa 2026.2 (Genap)</option>
+              <option value="20262">Masa 2026.2 (Genap) - Belum Ada Data</option>
             </select>
           </div>
 
@@ -332,7 +332,6 @@ export default function KebutuhanKelasPage() {
                 <th className="px-4 py-3 font-semibold">Kode Matkul</th>
                 <th className="px-4 py-3 font-semibold">Nama Mata Kuliah</th>
                 <th className="px-4 py-3 font-semibold">Program Studi</th>
-                <th className="px-4 py-3 font-semibold text-center">Rincian Skema (SIPAS/Non-SIPAS)</th>
                 <th className="px-4 py-3 font-semibold text-center">Total Peserta Tuton</th>
                 <th className="px-4 py-3 font-semibold text-center">Prediksi Kelas (50 Mhs/Kelas)</th>
                 <th className="px-4 py-3 font-semibold text-center">Kebutuhan Minimal Tutor</th>
@@ -342,7 +341,7 @@ export default function KebutuhanKelasPage() {
             <tbody className="divide-y divide-slate-100">
               {loading && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
                     Memuat data prediksi kelas & tutor FHISIP dari API...
                   </td>
                 </tr>
@@ -350,8 +349,20 @@ export default function KebutuhanKelasPage() {
 
               {!loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
-                    Tidak ada mata kuliah yang sesuai dengan filter / pencarian.
+                  <td colSpan={7} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <Calendar className="w-8 h-8 text-slate-300" />
+                      <p className="text-sm font-bold text-slate-700">
+                        {selectedMasa === '20262'
+                          ? 'Belum Ada Data Registrasi Masa 2026.2 (Genap)'
+                          : 'Tidak ada data mata kuliah yang sesuai dengan pencarian.'}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {selectedMasa === '20262'
+                          ? 'Data registrasi 2026.2 belum dibuka / belum diinputkan ke sistem database.'
+                          : 'Coba ubah kata kunci atau filter program studi.'}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -371,16 +382,6 @@ export default function KebutuhanKelasPage() {
                           {item.prodiCode}
                         </span>
                         <span className="text-slate-600 font-medium truncate max-w-[140px]">{item.prodiName}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center text-xs whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-100 text-[11px] font-medium">
-                          SIPAS: <strong className="font-bold text-blue-900">{(item.sipasNonTtm || 0).toLocaleString('id-ID')}</strong>
-                        </span>
-                        <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-100 text-[11px] font-medium">
-                          Non-SIPAS: <strong className="font-bold text-indigo-900">{(item.nonSipas || 0).toLocaleString('id-ID')}</strong>
-                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">

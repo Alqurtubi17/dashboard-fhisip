@@ -64,9 +64,9 @@ export async function GET(request: Request) {
       }
     } catch {}
 
-    // Fallback to JSON dataset if DB table is initializing
-    if (items.length === 0) {
-      items = (fhisipPrediksiData as any[]).map((item) => ({ ...item, masa }))
+    // Fallback to JSON dataset ONLY for authentic masa 20261 if DB table is initializing
+    if (items.length === 0 && masa === '20261') {
+      items = (fhisipPrediksiData as any[]).map((item) => ({ ...item, masa: '20261' }))
       if (prodiFilter !== 'ALL') {
         items = items.filter((i) => i.prodiCode.toLowerCase() === prodiFilter.toLowerCase())
       }
