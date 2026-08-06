@@ -15,6 +15,11 @@ import {
   FileSpreadsheet,
   Layers,
   Download,
+  Upload,
+  FileUp,
+  Loader2,
+  Check,
+  AlertCircle,
   GitCompare,
   ArrowUpRight,
   ArrowDownRight,
@@ -90,6 +95,14 @@ export default function KebutuhanKelasPage() {
   // Selected item modal state
   const [selectedItem, setSelectedItem] = useState<KebutuhanKelasItem | null>(null)
 
+  // Upload Excel modal state
+  const [showUploadModal, setShowUploadModal] = useState<boolean>(false)
+  const [uploadMasa, setUploadMasa] = useState<string>('20262')
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState<boolean>(false)
+  const [uploadSuccessMsg, setUploadSuccessMsg] = useState<string>('')
+  const [uploadErrorMsg, setUploadErrorMsg] = useState<string>('')
+
   const fetchData = async () => {
     setLoading(true)
     try {
@@ -149,6 +162,48 @@ export default function KebutuhanKelasPage() {
     window.location.href = exportUrl
   }
 
+  const handleUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!uploadFile) {
+      setUploadErrorMsg('Pilih file Excel (.xlsx / .xls) terlebih dahulu')
+      return
+    }
+
+    setUploading(true)
+    setUploadSuccessMsg('')
+    setUploadErrorMsg('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', uploadFile)
+      formData.append('masa', uploadMasa)
+
+      const res = await fetch('/api/dashboard/kebutuhan-kelas/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const json = await res.json()
+
+      if (res.ok && json.success) {
+        setUploadSuccessMsg(json.message || 'File Excel berhasil diunggah dan disimpan!')
+        setSelectedMasa(uploadMasa)
+        setTimeout(() => {
+          setShowUploadModal(false)
+          setUploadFile(null)
+          setUploadSuccessMsg('')
+          fetchData()
+        }, 1500)
+      } else {
+        setUploadErrorMsg(json.error || 'Gagal mengunggah file Excel')
+      }
+    } catch (err: any) {
+      setUploadErrorMsg(err.message || 'Terjadi kesalahan jaringan saat mengunggah')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const renderSortIcon = (field: SortField) => {
     if (sortField !== field) return <ArrowUpDown className="w-3.5 h-3.5 opacity-40 group-hover:opacity-100 transition" />
     return sortOrder === 'asc' ? (
@@ -175,7 +230,7 @@ export default function KebutuhanKelasPage() {
         </div>
       </div>
 
-      {/* Control Bar: Masa Selector & Comparison Options */}
+      {/* Control Bar: Masa Selector, Comparison & Upload/Download */}
       <div className="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50 border border-slate-200/80">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
@@ -192,7 +247,8 @@ export default function KebutuhanKelasPage() {
               className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl font-bold text-ut-navy focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
             >
               <option value="20261">Masa 2026.1 (Ganjil)</option>
-              <option value="20262">Masa 2026.2 (Genap) - Belum Ada Data</option>
+              <option value="20262">Masa 2026.2 (Genap)</option>
+              <option value="20271">Masa 2027.1 (Ganjil)</option>
             </select>
           </div>
 
@@ -212,18 +268,32 @@ export default function KebutuhanKelasPage() {
               <option value="">-- Tanpa Pembanding --</option>
               {selectedMasa !== '20261' && <option value="20261">Masa 2026.1 (Ganjil)</option>}
               {selectedMasa !== '20262' && <option value="20262">Masa 2026.2 (Genap)</option>}
+              {selectedMasa !== '20271' && <option value="20271">Masa 2027.1 (Ganjil)</option>}
             </select>
           </div>
         </div>
 
-        {/* Download Excel Button */}
-        <button
-          onClick={handleExportExcel}
-          className="btn-primary py-2 px-4 text-xs font-bold inline-flex items-center justify-center gap-2 rounded-xl shadow-xs hover:shadow-md transition bg-emerald-600 hover:bg-emerald-700 text-white"
-        >
-          <Download className="w-4 h-4" />
-          <span>Download Excel (.xlsx)</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Upload Excel Button */}
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="btn-secondary py-2 px-3.5 text-xs font-bold inline-flex items-center justify-center gap-1.5 rounded-xl shadow-xs hover:shadow-md transition bg-white border border-slate-300 text-ut-navy hover:bg-slate-50"
+            title="Upload File Excel Baru (.xlsx)"
+          >
+            <Upload className="w-4 h-4 text-ut-blue" />
+            <span>Upload Excel</span>
+          </button>
+
+          {/* Download Excel Button */}
+          <button
+            onClick={handleExportExcel}
+            className="btn-primary py-2 px-3.5 text-xs font-bold inline-flex items-center justify-center gap-1.5 rounded-xl shadow-xs hover:shadow-md transition bg-emerald-600 hover:bg-emerald-700 text-white"
+            title="Download Format Excel (.xlsx)"
+          >
+            <Download className="w-4 h-4" />
+            <span>Download Excel</span>
+          </button>
+        </div>
       </div>
 
       {/* Summary Metric Cards */}
@@ -533,6 +603,128 @@ export default function KebutuhanKelasPage() {
           />
         )}
       </div>
+
+      {/* UPLOAD EXCEL MODAL */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-ut-navy/10 text-ut-navy flex items-center justify-center font-bold">
+                  <FileUp className="w-5 h-5 text-ut-navy" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Upload File Excel Prediksi Kelas</h3>
+                  <p className="text-xs text-slate-500">Impor data rekap kelas & tutor per masa akademik</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowUploadModal(false)
+                  setUploadFile(null)
+                  setUploadSuccessMsg('')
+                  setUploadErrorMsg('')
+                }}
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUploadSubmit} className="space-y-4">
+              {/* Select Masa Target */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">Target Masa Akademik:</label>
+                <select
+                  value={uploadMasa}
+                  onChange={(e) => setUploadMasa(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-ut-navy focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
+                >
+                  <option value="20262">Masa 2026.2 (Genap)</option>
+                  <option value="20261">Masa 2026.1 (Ganjil)</option>
+                  <option value="20271">Masa 2027.1 (Ganjil)</option>
+                </select>
+              </div>
+
+              {/* Upload Input Box */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 block">Pilih File Spreadsheet (.xlsx / .xls):</label>
+                <div className="border-2 border-dashed border-slate-300 hover:border-ut-blue rounded-2xl p-4 text-center bg-slate-50/50 hover:bg-sky-50/30 transition cursor-pointer relative">
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setUploadFile(e.target.files[0])
+                        setUploadErrorMsg('')
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="flex flex-col items-center justify-center space-y-1.5">
+                    <FileSpreadsheet className="w-8 h-8 text-emerald-600" />
+                    <p className="text-xs font-bold text-slate-700">
+                      {uploadFile ? uploadFile.name : 'Klik atau seret file Excel ke sini'}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      {uploadFile ? `${(uploadFile.size / 1024).toFixed(1)} KB` : 'Format disarankan: .xlsx standar universitas'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notifications */}
+              {uploadSuccessMsg && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{uploadSuccessMsg}</span>
+                </div>
+              )}
+
+              {uploadErrorMsg && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{uploadErrorMsg}</span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUploadModal(false)
+                    setUploadFile(null)
+                    setUploadSuccessMsg('')
+                    setUploadErrorMsg('')
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                  disabled={uploading}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploading || !uploadFile}
+                  className="btn-primary text-xs py-2 px-5 rounded-xl font-bold bg-ut-navy text-white hover:bg-ut-blue disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Mengunggah...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      <span>Unggah & Simpan ke DB</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* DETAIL ALOKASI KELAS & TUTOR MODAL PREVIEW */}
       {selectedItem && (
