@@ -134,7 +134,7 @@ export default function KebutuhanKelasPage() {
             Perencanaan Prediksi Kelas & Tutor FHISIP
           </h1>
           <p className="text-sm text-slate-200 leading-relaxed">
-            Prediksi pembentukan kelas tutorial (50 peserta/kelas) dan kebutuhan minimal tutor (maksimal 4 kelas per tutor) tersimpan di database PostgreSQL dengan fitur analisis pembanding antar-masa akademik.
+            Perencanaan dan estimasi kebutuhan kelas tutorial (50 mahasiswa per kelas) serta analisis kebutuhan tutor pengampu di lingkungan FHISIP Universitas Terbuka.
           </p>
         </div>
       </div>
@@ -342,7 +342,7 @@ export default function KebutuhanKelasPage() {
               {loading && (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
-                    Memuat data prediksi kelas & tutor FHISIP dari API...
+                    Memuat data perencanaan kelas & tutor...
                   </td>
                 </tr>
               )}
