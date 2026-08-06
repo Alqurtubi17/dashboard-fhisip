@@ -37,7 +37,16 @@ const MENUS: {
 }[] = [
   { name: 'Dashboard', icon: 'LayoutDashboard', url: '/dashboard', permissionKey: 'dashboard.view', sort: 1 },
   { name: 'Mahasiswa', icon: 'GraduationCap', url: '/mahasiswa', permissionKey: 'mahasiswa.view', sort: 2 },
-  { name: 'Akademik', icon: 'BookOpen', url: '/akademik/jadwal', permissionKey: 'akademik.view', sort: 3 },
+  {
+    name: 'Akademik',
+    icon: 'BookOpen',
+    permissionKey: 'akademik.view',
+    sort: 3,
+    children: [
+      { name: 'Jadwal Tutorial & Ujian', icon: 'Calendar', url: '/akademik/jadwal', permissionKey: 'akademik.view', sort: 1 },
+      { name: 'Kebutuhan Kelas & Tutor', icon: 'LayoutGrid', url: '/akademik/kelas', permissionKey: 'akademik.view', sort: 2 },
+    ],
+  },
   { name: 'Kemahasiswaan', icon: 'Award', url: '/kemahasiswaan/prestasi', permissionKey: 'kemahasiswaan.view', sort: 4 },
   {
     name: 'Pengaturan Akses',
