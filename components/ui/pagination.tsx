@@ -47,9 +47,9 @@ export function Pagination({
       {/* Items Info & Page Size Selector */}
       <div className="flex flex-wrap items-center gap-3">
         <span>
-          Menampilkan <strong className="font-semibold text-slate-800">{startItem}</strong> -{' '}
-          <strong className="font-semibold text-slate-800">{endItem}</strong> dari{' '}
-          <strong className="font-semibold text-slate-800">{totalItems}</strong> data
+          Menampilkan <strong className="font-semibold text-slate-800">{startItem.toLocaleString('id-ID')}</strong> -{' '}
+          <strong className="font-semibold text-slate-800">{endItem.toLocaleString('id-ID')}</strong> dari{' '}
+          <strong className="font-semibold text-slate-800">{totalItems.toLocaleString('id-ID')}</strong> data
         </span>
 
         <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">

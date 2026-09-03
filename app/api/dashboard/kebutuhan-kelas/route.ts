@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import fhisipPrediksiData from '@/data/fhisip-prediksi-kelas.json'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export type KebutuhanKelasItem = {
   id: string
   masa: string

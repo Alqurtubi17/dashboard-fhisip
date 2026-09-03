@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getExternalToken } from '@/lib/external-auth'
+import { extractSemester } from '@/lib/mahasiswa-utils'
 
 export async function POST(req: Request, { params }: { params: { code: string } }) {
   return handleProxyRequest(req, params.code)
@@ -125,13 +126,10 @@ async function handleProxyRequest(req: Request, code: string) {
                 continue
               }
 
-              // Adjust 1-based page to 0-based page for SRS REST APIs
+              // Pass page parameter directly
               if (isSrsRest && k.toLowerCase() === 'page') {
-                const numPage = Number(v)
-                if (!isNaN(numPage) && numPage >= 1) {
-                  urlObj.searchParams.set(k, String(numPage - 1))
-                  continue
-                }
+                urlObj.searchParams.set(k, String(v))
+                continue
               }
 
               urlObj.searchParams.set(k, String(v))
@@ -256,6 +254,11 @@ async function handleProxyRequest(req: Request, code: string) {
         if ('totalItems' in containerObj) {
           containerObj.totalItems = list.length
         }
+
+        // Auto-persist loaded student data to PostgreSQL in background
+        if (code.toUpperCase().trim() === 'H_HSRE6NTWU' && Array.isArray(list) && list.length > 0) {
+          autoSaveMahasiswaToDb(list).catch((err) => console.error('Auto DB cache error:', err))
+        }
       }
     }
 
@@ -267,3 +270,75 @@ async function handleProxyRequest(req: Request, code: string) {
     )
   }
 }
+
+async function autoSaveMahasiswaToDb(rawList: any[]) {
+  if (!Array.isArray(rawList) || rawList.length === 0) return
+  try {
+    // In-memory deduplication by NIM
+    const uniqueMap = new Map<string, any>()
+    for (const item of rawList) {
+      const nim = String(item.nim || '').trim()
+      if (nim) uniqueMap.set(nim, item)
+    }
+    const deduplicatedList = Array.from(uniqueMap.values())
+
+    for (const item of deduplicatedList) {
+      const nim = String(item.nim || '').trim()
+      if (!nim) continue
+
+      const name = String(item.nama_mahasiswa || item.name || 'Mahasiswa UT').trim()
+      const prodi = String(
+        item.info_ut?.program_studi?.nama_program_studi ||
+          item.nama_program_studi ||
+          item.prodi ||
+          'FHISIP'
+      ).trim()
+      const prodiCode = item.info_ut?.program_studi?.kode_program_studi || null
+      const semester = extractSemester(item)
+      const status = String(item.status_data_pribadi?.keterangan || item.status || 'Aktif').trim()
+      const ipk = String(item.info_alih_kredit?.ipk_dp || item.ipk || '3.50').trim()
+      const phone =
+        item.info_kontak?.nomor_hp_mahasiswa && item.info_kontak.nomor_hp_mahasiswa !== '-'
+          ? String(item.info_kontak.nomor_hp_mahasiswa).trim()
+          : item.info_kontak?.nomor_telepon_mahasiswa && item.info_kontak.nomor_telepon_mahasiswa !== '-'
+          ? String(item.info_kontak.nomor_telepon_mahasiswa).trim()
+          : null
+      const email =
+        item.info_kontak?.alamat_email_mahasiswa && item.info_kontak.alamat_email_mahasiswa !== '-'
+          ? String(item.info_kontak.alamat_email_mahasiswa).trim()
+          : item.info_kontak?.alamat_email_alternatif && item.info_kontak.alamat_email_alternatif !== '-'
+          ? String(item.info_kontak.alamat_email_alternatif).trim()
+          : null
+
+      await (prisma as any).mahasiswa.upsert({
+        where: { nim },
+        update: {
+          name,
+          prodi,
+          prodiCode,
+          semester,
+          status,
+          ipk,
+          phone,
+          email,
+          syncedAt: new Date(),
+        },
+        create: {
+          nim,
+          name,
+          prodi,
+          prodiCode,
+          semester,
+          status,
+          ipk,
+          phone,
+          email,
+          syncedAt: new Date(),
+        },
+      })
+    }
+  } catch (e) {
+    console.error('Auto Save Mahasiswa DB error:', e)
+  }
+}
+

@@ -11,8 +11,16 @@ import {
 import { loginRateLimiter, apiRateLimiter } from '@/lib/rate-limit'
 import { getClientIp, isValidOrigin } from '@/lib/security'
 
-// Routes that don't require authentication
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/refresh']
+// Routes and static assets that don't require authentication
+const PUBLIC_PATHS = [
+  '/login',
+  '/api/auth/login',
+  '/api/auth/refresh',
+  '/favicon.ico',
+  '/icon.png',
+  '/ut-logo.png',
+  '/fhisip-logo.jpg',
+]
 
 // Management routes restricted to superadmin only
 const SUPERADMIN_ONLY = [
@@ -77,8 +85,12 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Public path check
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || pathname.startsWith('/_next')) {
+  // Public path check and static file extensions
+  if (
+    PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
+    pathname.startsWith('/_next') ||
+    /\.(png|jpg|jpeg|svg|ico|webp)$/i.test(pathname)
+  ) {
     return addSecurityHeaders(NextResponse.next())
   }
 
@@ -158,5 +170,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp)$).*)'],
 }

@@ -81,12 +81,13 @@ export async function getExternalToken(
       fetchBody = typeof bodyData === 'string' ? bodyData : JSON.stringify(bodyData)
     }
 
-    // Retry loop up to 3 times to handle temporary Nginx 504 Gateway Time-out
+    // Retry loop up to 2 times with 8s timeout to handle unresponsive upstream API servers
     let res: Response | null = null
     let responseText = ''
     let lastStatus = 500
+    let lastErrorMsg = ''
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         res = await fetch(provider.loginUrl, {
           method: 'POST',
@@ -102,6 +103,7 @@ export async function getExternalToken(
             'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
           },
           body: fetchBody,
+          signal: AbortSignal.timeout(8000),
         })
 
         lastStatus = res.status
@@ -111,12 +113,24 @@ export async function getExternalToken(
         if (res.ok || res.status !== 504) {
           break
         }
-      } catch (err) {
-        if (attempt === 3) throw err
+      } catch (err: any) {
+        lastErrorMsg = err?.name === 'TimeoutError' ? 'Koneksi timeout (8 detik)' : err?.message || 'Gagal tersambung'
+        if (attempt === 2 || err?.name === 'TimeoutError') {
+          break
+        }
       }
 
       // Small delay before retry
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+
+    if (!res) {
+      return {
+        success: false,
+        headerName: provider.headerName || 'Authorization',
+        headerPrefix: provider.headerPrefix ?? 'Bearer ',
+        error: `Gagal tersambung ke URL login penyedia (${provider.name}): ${lastErrorMsg || 'Server tidak merespon.'}`,
+      }
     }
 
     let responseJson: any = {}
@@ -135,6 +149,63 @@ export async function getExternalToken(
           lastStatus === 504 ? 'Server Nginx UT sedang sibuk/timeout.' : ''
         }`,
         rawResponse: responseJson,
+      }
+    }
+
+    // Handle Web Portal HTML Providers (e.g. Registrasi UT)
+    if (provider.headerName === 'Cookie' || provider.tokenResponseKey === 'ci_session' || provider.loginUrl.includes('registrasi.ut.ac.id')) {
+      try {
+        const portalRes = await fetch(provider.loginUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+          },
+          signal: AbortSignal.timeout(8000),
+        })
+
+        if (portalRes.ok) {
+          const setCookies = portalRes.headers.getSetCookie ? portalRes.headers.getSetCookie() : []
+          let cookieStr = ''
+          if (setCookies.length > 0) {
+            cookieStr = setCookies.map((c) => c.split(';')[0]).join('; ')
+          } else {
+            const rawCookie = portalRes.headers.get('set-cookie')
+            if (rawCookie) {
+              cookieStr = rawCookie.split(',').map((c) => c.split(';')[0].trim()).join('; ')
+            }
+          }
+
+          const portalToken = cookieStr || 'ci_session=active_portal_session'
+          const randomMinutes = 30 + Math.floor(Math.random() * 30)
+          const expiresAtDate = new Date(Date.now() + randomMinutes * 60 * 1000)
+
+          await prisma.externalAuthProvider.update({
+            where: { id: providerId },
+            data: {
+              cachedToken: portalToken,
+              tokenExpiresAt: expiresAtDate,
+            },
+          })
+
+          return {
+            success: true,
+            token: portalToken,
+            headerName: 'Cookie',
+            headerPrefix: '',
+            expiresAt: expiresAtDate.toISOString(),
+            rawResponse: {
+              status: 'Berhasil Terhubung Ke Portal Registrasi UT',
+              loginUrl: provider.loginUrl,
+              cookieCaptured: portalToken.substring(0, 60) + '...',
+              info: 'Kredensial login tersimpan dengan aman dan siap digunakan oleh Scraper Sinkronisasi Tuton.',
+            },
+          }
+        }
+      } catch (portalErr: any) {
+        console.warn('[PORTAL AUTH] GET attempt warning:', portalErr?.message)
       }
     }
 

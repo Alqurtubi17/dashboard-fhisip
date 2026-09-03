@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   LayoutGrid,
   Calendar,
@@ -27,6 +28,7 @@ import {
   ArrowUp,
   ArrowDown,
   ShieldCheck,
+  RefreshCw,
 } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -71,6 +73,7 @@ type SortField = 'kodeMatkul' | 'namaMatkul' | 'prodiCode' | 'totalMahasiswa' | 
 type SortOrder = 'asc' | 'desc'
 
 export default function KebutuhanKelasPage() {
+  const [mounted, setMounted] = useState(false)
   const [items, setItems] = useState<KebutuhanKelasItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedMasa, setSelectedMasa] = useState<string>('20261')
@@ -81,6 +84,10 @@ export default function KebutuhanKelasPage() {
     totalKebutuhanKelas: 0,
     totalKebutuhanTutorMin: 0,
   })
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // User session state for role check
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -107,6 +114,103 @@ export default function KebutuhanKelasPage() {
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState<string>('')
   const [uploadErrorMsg, setUploadErrorMsg] = useState<string>('')
 
+  // Toast notification state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 4000)
+  }
+
+  // Sync Tuton modal state (registrasi.ut.ac.id)
+  const [showTutonModal, setShowTutonModal] = useState<boolean>(false)
+  const [syncingTuton, setSyncingTuton] = useState<boolean>(false)
+  const [syncProdi, setSyncProdi] = useState<string>('ALL')
+  const [tutonResult, setTutonResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [progressState, setProgressState] = useState<{
+    percentage: number
+    current: number
+    total: number
+    itemLabel?: string
+    statusText?: string
+  } | null>(null)
+
+  const handleSyncTutonData = async () => {
+    setSyncingTuton(true)
+    setTutonResult(null)
+    setProgressState({
+      percentage: 0,
+      current: 0,
+      total: 100,
+      itemLabel: 'Inisialisasi Peramban...',
+      statusText: 'Menghubungkan ke Portal Registrasi UT...',
+    })
+
+    try {
+      const res = await fetch('/api/kebutuhan-kelas/sync-tuton', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ masa: selectedMasa, prodi: syncProdi }),
+      })
+
+      if (!res.ok || !res.body) {
+        throw new Error('Gagal tersambung ke peladen sinkronisasi.')
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        const chunks = buffer.split('\n\n')
+        buffer = chunks.pop() || ''
+
+        for (const chunk of chunks) {
+          if (chunk.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(chunk.substring(6))
+              if (data.type === 'progress') {
+                setProgressState({
+                  percentage: data.percentage || 0,
+                  current: data.current || 0,
+                  total: data.total || 261,
+                  itemLabel: data.itemLabel,
+                  statusText: data.statusText,
+                })
+              } else if (data.type === 'complete') {
+                setProgressState({
+                  percentage: 100,
+                  current: data.totalMatkul || 261,
+                  total: data.totalMatkul || 261,
+                  itemLabel: 'Selesai',
+                  statusText: 'Sinkronisasi berhasil!',
+                })
+                fetchData()
+                setTimeout(() => {
+                  setShowTutonModal(false)
+                  showToast(data.message || 'Sinkronisasi Data Peserta Tuton Berhasil Selesai!', 'success')
+                }, 1000)
+              } else if (data.type === 'error') {
+                showToast(data.error || 'Gagal sinkronisasi data peserta Tuton.', 'error')
+                setTimeout(() => {
+                  setShowTutonModal(false)
+                }, 1000)
+              }
+            } catch {}
+          }
+        }
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Gagal tersambung ke peladen sinkronisasi.', 'error')
+    } finally {
+      setSyncingTuton(false)
+    }
+  }
+
   // Load current user profile for role verification
   useEffect(() => {
     fetch('/api/auth/me')
@@ -129,8 +233,8 @@ export default function KebutuhanKelasPage() {
     try {
       const url = `/api/dashboard/kebutuhan-kelas?masa=${selectedMasa}&compareMasa=${compareMasa}&prodi=${selectedProdi}&query=${encodeURIComponent(
         debouncedSearchQuery
-      )}&page=1&pageSize=300`
-      const res = await fetch(url)
+      )}&page=1&pageSize=300&_t=${Date.now()}`
+      const res = await fetch(url, { cache: 'no-store' })
       if (res.ok) {
         const json = await res.json()
         if (json.success && json.data) {
@@ -295,15 +399,18 @@ export default function KebutuhanKelasPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Upload Excel Button - Super Admin Only */}
+          {/* Sync Tuton Button - Super Admin Only */}
           {isSuperAdmin && (
             <button
-              onClick={() => setShowUploadModal(true)}
-              className="btn-secondary py-2 px-3.5 text-xs font-bold inline-flex items-center justify-center gap-1.5 rounded-xl shadow-xs hover:shadow-md transition bg-white border border-slate-300 text-ut-navy hover:bg-slate-50"
-              title="Khusus Super Admin: Upload File Excel Baru (.xlsx)"
+              onClick={() => {
+                setTutonResult(null)
+                setShowTutonModal(true)
+              }}
+              className="btn-primary py-2 px-3.5 text-xs font-bold inline-flex items-center justify-center gap-1.5 rounded-xl shadow-xs hover:shadow-md transition bg-ut-navy hover:bg-ut-navy/90 text-white"
+              title="Khusus Super Admin: Sinkronkan total peserta Tuton dari Portal Registrasi UT"
             >
-              <Upload className="w-4 h-4 text-ut-blue" />
-              <span>Upload Excel</span>
+              <RefreshCw className="w-4 h-4 text-amber-400" />
+              <span>Sinkronisasi Peserta Tuton</span>
             </button>
           )}
 
@@ -628,8 +735,8 @@ export default function KebutuhanKelasPage() {
       </div>
 
       {/* UPLOAD EXCEL MODAL - Super Admin Only */}
-      {showUploadModal && isSuperAdmin && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
+      {mounted && showUploadModal && isSuperAdmin && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -687,15 +794,11 @@ export default function KebutuhanKelasPage() {
                     }}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
-                  <div className="flex flex-col items-center justify-center space-y-1.5">
-                    <FileSpreadsheet className="w-8 h-8 text-emerald-600" />
-                    <p className="text-xs font-bold text-slate-700">
-                      {uploadFile ? uploadFile.name : 'Klik atau seret file Excel ke sini'}
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                      {uploadFile ? `${(uploadFile.size / 1024).toFixed(1)} KB` : 'Format disarankan: .xlsx standar universitas'}
-                    </p>
-                  </div>
+                  <FileSpreadsheet className="w-8 h-8 text-ut-blue mx-auto mb-2" />
+                  <p className="text-xs font-bold text-slate-700">
+                    {uploadFile ? uploadFile.name : 'Klik atau seret file Excel ke sini'}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-1">Format didukung: XLS, XLSX (Maks 10MB)</p>
                 </div>
               </div>
 
@@ -749,12 +852,13 @@ export default function KebutuhanKelasPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* DETAIL ALOKASI KELAS & TUTOR MODAL PREVIEW */}
-      {selectedItem && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
+      {mounted && selectedItem && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -788,18 +892,15 @@ export default function KebutuhanKelasPage() {
                 </div>
               </div>
 
-              {/* Rincian Skema Registrasi Mahasiswa */}
-              <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2">
-                <p className="font-bold text-slate-700 flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-ut-blue" />
-                  Rincian Skema Registrasi Peserta Tuton:
-                </p>
-                <div className="grid grid-cols-2 gap-2 text-slate-600 text-[11px]">
-                  <div>• SIPAS Non-TTM: <strong className="text-slate-900">{(selectedItem.sipasNonTtm || 0).toLocaleString('id-ID')} mhs</strong></div>
-                  <div>• Non-SIPAS: <strong className="text-slate-900">{(selectedItem.nonSipas || 0).toLocaleString('id-ID')} mhs</strong></div>
-                  <div>• Tuton SIPAS Semi/Penuh: <strong className="text-slate-900">{(selectedItem.tutonSipas || 0).toLocaleString('id-ID')} mhs</strong></div>
-                  <div>• Total Peserta Tuton: <strong className="text-amber-800">{selectedItem.totalMahasiswa.toLocaleString('id-ID')} mhs</strong></div>
-                </div>
+              {/* Total Peserta Tuton */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 flex items-center justify-between">
+                <span className="font-bold text-slate-700 text-xs flex items-center gap-2">
+                  <Users className="w-4 h-4 text-ut-navy" />
+                  Total Peserta Tuton:
+                </span>
+                <span className="font-black text-amber-900 text-sm bg-amber-50 px-3 py-1 rounded-lg border border-amber-200">
+                  {(selectedItem.jumlahTuton || selectedItem.totalMahasiswa).toLocaleString('id-ID')} Mahasiswa
+                </span>
               </div>
 
               {/* Formula Box 1: Prediksi Kelas */}
@@ -837,7 +938,180 @@ export default function KebutuhanKelasPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* MODAL SINKRONISASI TUTON (registrasi.ut.ac.id) */}
+      {mounted && showTutonModal && isSuperAdmin && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-ut-navy/10 text-ut-navy flex items-center justify-center font-bold">
+                  <RefreshCw className={`w-5 h-5 text-ut-navy ${syncingTuton ? 'animate-spin' : ''}`} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Sinkronisasi Peserta Tuton</h3>
+                  <p className="text-xs text-slate-500">Pembaruan Data Otomatis</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTutonModal(false)}
+                disabled={syncingTuton}
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 disabled:opacity-40"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-200 leading-relaxed">
+                Sistem akan memperbarui data jumlah peserta Tutorial Online (Tuton) secara langsung dari portal resmi Universitas Terbuka untuk seluruh mata kuliah FHISIP.
+              </p>
+
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-700">Target Masa Akademik:</span>
+                  <span className="font-bold text-ut-navy bg-white px-2.5 py-1 rounded-lg border border-slate-200 font-mono">
+                    Masa {selectedMasa}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 text-xs block flex items-center justify-between">
+                    <span>Pilih Program Studi Dituju:</span>
+                    <span className="text-[11px] font-normal text-slate-500">Filter Khusus / All</span>
+                  </label>
+                  <select
+                    value={syncProdi}
+                    onChange={(e) => setSyncProdi(e.target.value)}
+                    disabled={syncingTuton}
+                    className="w-full text-xs font-semibold rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-ut-navy focus:ring-1 focus:ring-ut-navy disabled:opacity-50"
+                  >
+                    <option value="ALL">Seluruh Program Studi FHISIP (Semua 261 Matkul)</option>
+                    <option value="HKUM">S1 Ilmu Hukum (FSIH / HKUM)</option>
+                    <option value="ADPU">S1 Administrasi Publik (FSAP / ADPU)</option>
+                    <option value="ADBI">S1 Administrasi Bisnis (FSAB / ADBI)</option>
+                    <option value="IKOM">S1 Ilmu Komunikasi (FSIK / IKOM)</option>
+                    <option value="IPEM">S1 Ilmu Pemerintahan (FSIP / IPEM)</option>
+                    <option value="SOSI">S1 Sosiologi (FSSO / SOSI)</option>
+                    <option value="PUS">S1 Perpustakaan & Kearsipan (FSKP / PUS)</option>
+                    <option value="PAJAK">S1 / D3 Perpajakan (FSTX / PAJAK)</option>
+                    <option value="SING">S1 Sastra Inggris (FSAG / SING)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* LIVE PROGRESS BAR & STATUS INDICATOR */}
+              {syncingTuton && progressState && (
+                <div className="space-y-3 bg-slate-50 border border-slate-200/90 p-4 rounded-2xl animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                      </span>
+                      <span className="font-extrabold text-slate-800 text-xs">
+                        Proses Sinkronisasi Berlangsung...
+                      </span>
+                    </div>
+                    <span className="font-black text-ut-navy text-xs bg-ut-navy/10 px-2.5 py-1 rounded-lg border border-ut-navy/20 font-mono">
+                      {progressState.percentage}%
+                    </span>
+                  </div>
+
+                  {/* Progress Bar Track & Animated Fill */}
+                  <div className="w-full h-3.5 rounded-full bg-slate-200/80 overflow-hidden p-0.5 border border-slate-300/40">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-ut-navy via-ut-blue to-emerald-500 transition-all duration-300 shadow-sm relative overflow-hidden"
+                      style={{ width: `${Math.max(4, progressState.percentage)}%` }}
+                    >
+                      <div className="absolute inset-0 bg-white/25 animate-pulse"></div>
+                    </div>
+                  </div>
+
+                  {/* Status Info Text */}
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <span className="truncate max-w-[280px] font-medium text-slate-700">
+                      {progressState.itemLabel || progressState.statusText}
+                    </span>
+                    <span className="font-extrabold text-slate-900 shrink-0 font-mono">
+                      {progressState.current} / {progressState.total}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {tutonResult && (
+                <div
+                  className={`p-3 rounded-2xl text-xs flex items-start gap-2.5 border ${
+                    tutonResult.success
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-rose-50 text-rose-800 border-rose-200'
+                  }`}
+                >
+                  {tutonResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <span>{tutonResult.message}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowTutonModal(false)}
+                disabled={syncingTuton}
+                className="btn-secondary text-xs py-2 px-4 rounded-xl"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSyncTutonData}
+                disabled={syncingTuton}
+                className="btn-primary text-xs py-2 px-5 rounded-xl font-bold bg-ut-navy text-white hover:bg-ut-blue disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {syncingTuton ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Memproses Sinkronisasi Tuton...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Mulai Sinkronisasi Tuton</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* FLOATING TOAST SUCCESS/ERROR ALERT */}
+      {mounted && toast && createPortal(
+        <div className="fixed top-5 right-5 z-[9999999] animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className={`px-5 py-3.5 rounded-2xl shadow-2xl border backdrop-blur-md text-xs font-bold flex items-center gap-3 ${
+            toast.type === 'success'
+              ? 'bg-slate-900/95 text-emerald-400 border-emerald-500/30'
+              : 'bg-slate-900/95 text-rose-400 border-rose-500/30'
+          }`}>
+            {toast.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+            )}
+            <span className="text-white">{toast.message}</span>
+            <button onClick={() => setToast(null)} className="ml-3 text-slate-400 hover:text-white font-bold text-sm">✕</button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )

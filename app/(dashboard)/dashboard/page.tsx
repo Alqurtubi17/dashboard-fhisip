@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Users,
   GraduationCap,
@@ -60,6 +61,7 @@ type LkamItem = {
 import { useDebounce } from '@/hooks/useDebounce'
 
 export default function DashboardPage() {
+  const [mounted, setMounted] = useState(false)
   const [stats, setStats] = useState<DashboardStats>({
     totalMahasiswa: 407950,
     totalPengajar: 2842,
@@ -136,6 +138,7 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    setMounted(true)
     fetchStats()
 
     // Read configured refresh interval from settings (localStorage)
@@ -504,8 +507,8 @@ export default function DashboardPage() {
       </div>
 
       {/* DETAIL LKAM PREVIEW MODAL */}
-      {selectedLkamItem && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
+      {mounted && selectedLkamItem && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -593,7 +596,8 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

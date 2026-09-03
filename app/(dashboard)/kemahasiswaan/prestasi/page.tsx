@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Trophy,
   Search,
@@ -31,6 +32,7 @@ type PrestasiItem = {
 import { useDebounce } from '@/hooks/useDebounce'
 
 export default function PrestasiPage() {
+  const [mounted, setMounted] = useState(false)
   const [items, setItems] = useState<PrestasiItem[]>([])
   const [loading, setLoading] = useState(true)
   const [prodiFilter, setProdiFilter] = useState('ALL')
@@ -56,6 +58,7 @@ export default function PrestasiPage() {
   }
 
   useEffect(() => {
+    setMounted(true)
     loadData()
   }, [prodiFilter, debouncedSearchQuery])
 
@@ -214,8 +217,8 @@ export default function PrestasiPage() {
       </div>
 
       {/* DETAIL MODAL */}
-      {selectedItem && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
+      {mounted && selectedItem && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-3">
@@ -267,7 +270,8 @@ export default function PrestasiPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

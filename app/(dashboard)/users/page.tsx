@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -36,6 +37,7 @@ type UserForm = z.infer<typeof userSchema>
 import { useDebounce } from '@/hooks/useDebounce'
 
 export default function UsersPage() {
+  const [mounted, setMounted] = useState(false)
   const [users, setUsers] = useState<User[]>([])
   const [roles, setRoles] = useState<RoleOption[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,6 +67,7 @@ export default function UsersPage() {
   }
 
   useEffect(() => {
+    setMounted(true)
     loadData()
   }, [])
 
@@ -267,8 +270,8 @@ export default function UsersPage() {
       </div>
 
       {/* Modal Form */}
-      {modalOpen && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
+      {mounted && modalOpen && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="card w-full max-w-md p-6 relative">
             <button onClick={() => setModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <X className="w-5 h-5" />
@@ -344,12 +347,13 @@ export default function UsersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Confirm */}
-      {deleteTarget && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
+      {mounted && deleteTarget && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="card w-full max-w-sm p-6">
             <h2 className="text-lg font-semibold text-slate-800 mb-2">Hapus User?</h2>
             <p className="text-sm text-slate-500 mb-5">
@@ -364,7 +368,8 @@ export default function UsersPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

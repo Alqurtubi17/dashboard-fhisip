@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   KeyRound,
   Link2,
@@ -68,10 +69,12 @@ type ConfirmState = {
 }
 
 export default function ApiConfigsPage() {
+  const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState<'configs' | 'providers' | 'settings'>('configs')
   const [refreshInterval, setRefreshInterval] = useState<string>('3600000')
 
   useEffect(() => {
+    setMounted(true)
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('dashboard_refresh_interval')
       if (saved) setRefreshInterval(saved)
@@ -131,6 +134,66 @@ export default function ApiConfigsPage() {
   const [testVariables, setTestVariables] = useState<string>('{\n}')
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<any>(null)
+
+  // Tuton Sync Modal state (Directly on API Configs Page)
+  const [tutonModalOpen, setTutonModalOpen] = useState(false)
+  const [tutonProvider, setTutonProvider] = useState<Provider | null>(null)
+  const [tutonUsername, setTutonUsername] = useState('')
+  const [tutonPassword, setTutonPassword] = useState('')
+  const [tutonMasa, setTutonMasa] = useState('20261')
+  const [syncingTuton, setSyncingTuton] = useState(false)
+  const [tutonResult, setTutonResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  const openTutonSyncModal = (provider: Provider) => {
+    setTutonProvider(provider)
+    setTutonResult(null)
+    try {
+      const parsed = JSON.parse(provider.authPayloadJson)
+      setTutonUsername(parsed.username || parsed.email || '')
+      setTutonPassword(parsed.password || '')
+    } catch {
+      setTutonUsername('')
+      setTutonPassword('')
+    }
+    setTutonModalOpen(true)
+  }
+
+  const handleExecuteTutonSync = async () => {
+    setSyncingTuton(true)
+    setTutonResult(null)
+    try {
+      const res = await fetch('/api/kebutuhan-kelas/sync-tuton', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId: tutonProvider?.id,
+          username: tutonUsername,
+          password: tutonPassword,
+          masa: tutonMasa,
+        }),
+      })
+      const json = await res.json()
+      if (res.ok && json.success) {
+        setTutonResult({
+          success: true,
+          message: json.message || `Sinkronisasi berhasil. ${json.updatedCount} data peserta Tuton telah diperbarui.`,
+        })
+        loadData()
+      } else {
+        setTutonResult({
+          success: false,
+          message: json.error || 'Gagal melakukan sinkronisasi data peserta Tuton.',
+        })
+      }
+    } catch (e: any) {
+      setTutonResult({
+        success: false,
+        message: 'Gagal melakukan sinkronisasi data akibat kendala jaringan.',
+      })
+    } finally {
+      setSyncingTuton(false)
+    }
+  }
 
   // Pagination states
   const [provPage, setProvPage] = useState(1)
@@ -437,7 +500,13 @@ export default function ApiConfigsPage() {
       (c.provider?.name || '').toLowerCase().includes(debouncedSearchQuery.toLowerCase())
   )
 
-  const paginatedProviders = filteredProviders.slice((provPage - 1) * provPageSize, provPage * provPageSize)
+  const sortedProviders = [...filteredProviders].sort((a, b) => {
+    if (a.name.toLowerCase().includes('registrasi')) return 1
+    if (b.name.toLowerCase().includes('registrasi')) return -1
+    return 0
+  })
+
+  const paginatedProviders = sortedProviders.slice((provPage - 1) * provPageSize, provPage * provPageSize)
   const paginatedConfigs = filteredConfigs.slice((confPage - 1) * confPageSize, confPage * confPageSize)
 
   return (
@@ -655,7 +724,7 @@ export default function ApiConfigsPage() {
         </div>
       )}
 
-      {/* TAB 2: API CONFIGS */}
+      {/* TAB 1: API CONFIGS */}
       {activeTab === 'configs' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -811,11 +880,9 @@ export default function ApiConfigsPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* MODERN CONFIRMATION MODAL */}
-      {confirmModal.open && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
+      )}      {/* MODERN CONFIRMATION MODAL */}
+      {mounted && confirmModal.open && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] overflow-y-auto my-auto">
             <div className="flex items-center gap-3">
               <div
@@ -850,12 +917,13 @@ export default function ApiConfigsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL: PROVIDER FORM */}
-      {providerModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
+      {mounted && providerModalOpen && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="font-bold text-slate-900 text-base">
@@ -865,6 +933,52 @@ export default function ApiConfigsPage() {
                 ✕
               </button>
             </div>
+
+            {!editingProvider && (
+              <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80 space-y-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Preset Cepat:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setProviderForm({
+                        name: 'Registrasi UT (Tuton)',
+                        loginUrl: 'https://registrasi.ut.ac.id/login',
+                        authPayloadJson: '{\n  "username": "user_registrasi@ut.ac.id",\n  "password": "your_password"\n}',
+                        tokenResponseKey: 'ci_session',
+                        contentType: 'application/x-www-form-urlencoded',
+                        graphqlQuery: '',
+                        headerName: 'Cookie',
+                        headerPrefix: '',
+                        status: 'ACTIVE',
+                      })
+                    }
+                    className="px-2.5 py-1 text-xs bg-white hover:bg-ut-navy hover:text-white text-slate-700 font-semibold rounded-xl border border-slate-200 transition shadow-2xs"
+                  >
+                    ⚡ Registrasi UT (daftarmtkmhs)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setProviderForm({
+                        name: 'FHISIP SRS UT',
+                        loginUrl: 'https://api-mahasiswa-srs.ut.ac.id/api-srs-mahasiswa/v1/auth',
+                        authPayloadJson: '{\n  "email": "api-fhisip@ut.ac.id",\n  "password": "UT03tf4C!!rf"\n}',
+                        tokenResponseKey: 'token',
+                        contentType: 'application/x-www-form-urlencoded',
+                        graphqlQuery: '',
+                        headerName: 'Authorization',
+                        headerPrefix: 'Bearer ',
+                        status: 'ACTIVE',
+                      })
+                    }
+                    className="px-2.5 py-1 text-xs bg-white hover:bg-ut-navy hover:text-white text-slate-700 font-semibold rounded-xl border border-slate-200 transition shadow-2xs"
+                  >
+                    ⚡ FHISIP SRS API
+                  </button>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSaveProvider} className="space-y-3.5">
               <div>
@@ -978,12 +1092,13 @@ export default function ApiConfigsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL: API CONFIG FORM */}
-      {configModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
+      {mounted && configModalOpen && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="font-bold text-slate-900 text-base">
@@ -1073,12 +1188,13 @@ export default function ApiConfigsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL: TEST RESULTS */}
-      {testModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
+      {mounted && testModalOpen && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
@@ -1202,7 +1318,135 @@ export default function ApiConfigsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* MODAL SINKRONISASI TUTON DENGAN PENGATURAN KREDENSIAL */}
+      {mounted && tutonModalOpen && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-ut-navy/10 text-ut-navy flex items-center justify-center font-bold">
+                  <RefreshCw className={`w-5 h-5 text-ut-navy ${syncingTuton ? 'animate-spin' : ''}`} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Sinkronisasi Data Peserta Tuton</h3>
+                  <p className="text-xs text-slate-500">Penyedia: {tutonProvider?.name || 'Portal Registrasi UT'}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setTutonModalOpen(false)}
+                disabled={syncingTuton}
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 disabled:opacity-40"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <p className="text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-200 leading-relaxed">
+                Sinkronisasi ini akan terhubung ke peladen penyedia untuk mengunduh total peserta Tuton per mata kuliah dan memperbarui statistik secara otomatis.
+              </p>
+
+              {/* Form Kredensial User & Password */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                  <KeyRound className="w-4 h-4 text-ut-navy" />
+                  Kredensial Akses Penyedia:
+                </h4>
+                
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Username / Email Registrasi:</label>
+                  <input
+                    type="text"
+                    required
+                    value={tutonUsername}
+                    onChange={(e) => setTutonUsername(e.target.value)}
+                    disabled={syncingTuton}
+                    placeholder="user_registrasi@ut.ac.id"
+                    className="input text-xs bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Kata Sandi (Password):</label>
+                  <input
+                    type="password"
+                    required
+                    value={tutonPassword}
+                    onChange={(e) => setTutonPassword(e.target.value)}
+                    disabled={syncingTuton}
+                    placeholder="••••••••••••"
+                    className="input text-xs bg-white font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Target Masa Akademik:</label>
+                  <select
+                    value={tutonMasa}
+                    onChange={(e) => setTutonMasa(e.target.value)}
+                    disabled={syncingTuton}
+                    className="input text-xs bg-white font-bold text-ut-navy"
+                  >
+                    <option value="20261">Masa 2026.1 (Ganjil)</option>
+                    <option value="20262">Masa 2026.2 (Genap)</option>
+                    <option value="20271">Masa 2027.1 (Ganjil)</option>
+                  </select>
+                </div>
+              </div>
+
+              {tutonResult && (
+                <div
+                  className={`p-3.5 rounded-2xl text-xs flex items-start gap-2.5 border ${
+                    tutonResult.success
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-rose-50 text-rose-800 border-rose-200'
+                  }`}
+                >
+                  {tutonResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <span>{tutonResult.message}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setTutonModalOpen(false)}
+                disabled={syncingTuton}
+                className="btn-secondary text-xs py-2 px-4 rounded-xl"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteTutonSync}
+                disabled={syncingTuton || !tutonUsername || !tutonPassword}
+                className="btn-primary text-xs py-2.5 px-5 rounded-xl font-bold bg-ut-navy text-white hover:bg-ut-blue disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {syncingTuton ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Proses Sinkronisasi Tuton...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Mulai Sinkronisasi Tuton</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )

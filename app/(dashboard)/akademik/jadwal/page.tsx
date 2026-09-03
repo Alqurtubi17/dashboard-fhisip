@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -153,7 +154,12 @@ const HOURS = [
 ]
 
 export default function JadwalAkademikPage() {
+  const [mounted, setMounted] = useState(false)
   const [currentDate, setCurrentDate] = useState(new Date(2026, 6, 29)) // July 29, 2026
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month')
   const [selectedDateStr, setSelectedDateStr] = useState<string>('2026-07-29')
   const [agendas, setAgendas] = useState<AgendaItem[]>(INITIAL_AGENDAS)
@@ -713,8 +719,8 @@ export default function JadwalAkademikPage() {
       )}
 
       {/* GOOGLE CALENDAR STYLE DAY HOURLY TIMELINE MODAL */}
-      {isDayTimelineModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
+      {mounted && isDayTimelineModalOpen && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
               <div className="flex items-center gap-2.5">
@@ -806,12 +812,13 @@ export default function JadwalAkademikPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* CREATE NEW AGENDA MODAL */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
+      {mounted && isAddModalOpen && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -948,12 +955,13 @@ export default function JadwalAkademikPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* AGENDA DETAIL MODAL */}
-      {selectedAgenda && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[99999] p-4 overflow-y-auto">
+      {mounted && selectedAgenda && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-200 my-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <span className={`px-3 py-1 rounded-full text-xs font-bold ${CATEGORY_MAP[selectedAgenda.category]?.bg} ${CATEGORY_MAP[selectedAgenda.category]?.text} border ${CATEGORY_MAP[selectedAgenda.category]?.border}`}>
@@ -1011,7 +1019,8 @@ export default function JadwalAkademikPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

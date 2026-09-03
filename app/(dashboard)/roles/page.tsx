@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -28,6 +29,7 @@ const roleSchema = z.object({
 type RoleForm = z.infer<typeof roleSchema>
 
 export default function RolesPage() {
+  const [mounted, setMounted] = useState(false)
   const [roles, setRoles] = useState<Role[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -53,6 +55,7 @@ export default function RolesPage() {
   }
 
   useEffect(() => {
+    setMounted(true)
     loadRoles()
   }, [])
 
@@ -204,8 +207,8 @@ export default function RolesPage() {
       </div>
 
       {/* Create / Edit Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
+      {mounted && modalOpen && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="card w-full max-w-md p-6 relative">
             <button onClick={() => setModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <X className="w-5 h-5" />
@@ -245,12 +248,13 @@ export default function RolesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Confirm */}
-      {deleteTarget && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
+      {mounted && deleteTarget && createPortal(
+        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
           <div className="card w-full max-w-sm p-6">
             <h2 className="text-lg font-semibold text-slate-800 mb-2">Hapus Role?</h2>
             <p className="text-sm text-slate-500 mb-5">
@@ -266,7 +270,8 @@ export default function RolesPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
