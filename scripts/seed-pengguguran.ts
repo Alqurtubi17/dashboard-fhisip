@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma'
+import bcrypt from 'bcryptjs'
 
 async function main() {
   console.log('🌱 Seeding Pengguguran Mata Kuliah Module...')
@@ -128,6 +129,33 @@ async function main() {
     data: { prodiCode: 'HKUM' },
   })
   console.log('✅ Kaprodi sample user linked to prodiCode HKUM.')
+
+  // 5. Seed / Update sample Mahasiswa portal accounts with hashed password
+  const defaultStudentHash = await bcrypt.hash('Mahasiswa123!', 10)
+  await prisma.mahasiswa.upsert({
+    where: { nim: '041234567' },
+    update: { password: defaultStudentHash, prodiCode: 'HKUM' },
+    create: {
+      nim: '041234567',
+      name: 'Budi Pratama (Mahasiswa HKUM)',
+      prodi: 'S1 Ilmu Hukum',
+      prodiCode: 'HKUM',
+      semester: 4,
+      status: 'Aktif',
+      ipk: '3.65',
+      email: 'budi.pratama@mahasiswa.ut.ac.id',
+      password: defaultStudentHash,
+      kurikulum: '2024',
+    },
+  })
+  console.log('✅ Sample student (NIM: 041234567 / Pass: Mahasiswa123!) seeded.')
+
+  // Also update Cindy if present
+  await prisma.mahasiswa.updateMany({
+    where: { nim: '045130359' },
+    data: { password: defaultStudentHash, kurikulum: '2024' },
+  })
+  console.log('✅ Student Cindy (NIM: 045130359) password configured.')
 
   console.log('🎉 Setup Pengguguran Mata Kuliah completed successfully!')
 }

@@ -4,8 +4,10 @@ import {
   verifyRefreshToken,
   signAccessToken,
   signRefreshToken,
+  verifyStudentToken,
   ACCESS_COOKIE,
   REFRESH_COOKIE,
+  STUDENT_COOKIE,
   SessionPayload,
 } from '@/lib/auth'
 import { loginRateLimiter, apiRateLimiter } from '@/lib/rate-limit'
@@ -16,6 +18,8 @@ const PUBLIC_PATHS = [
   '/login',
   '/api/auth/login',
   '/api/auth/refresh',
+  '/portal-mahasiswa/login',
+  '/api/mahasiswa/auth/login',
   '/favicon.ico',
   '/icon.png',
   '/ut-logo.png',
@@ -52,7 +56,7 @@ export async function middleware(req: NextRequest) {
   const clientIp = getClientIp(req.headers)
 
   // 1. Rate Limiting for Login
-  if (pathname === '/api/auth/login' && method === 'POST') {
+  if ((pathname === '/api/auth/login' || pathname === '/api/mahasiswa/auth/login') && method === 'POST') {
     const rateCheck = loginRateLimiter.check(5, clientIp)
     if (!rateCheck.success) {
       const res = NextResponse.json(
@@ -92,6 +96,39 @@ export async function middleware(req: NextRequest) {
     /\.(png|jpg|jpeg|svg|ico|webp)$/i.test(pathname)
   ) {
     return addSecurityHeaders(NextResponse.next())
+  }
+
+  // Redirect alias /mahasiswa/login to /portal-mahasiswa/login
+  if (pathname === '/mahasiswa/login') {
+    return NextResponse.redirect(new URL('/portal-mahasiswa/login', req.url))
+  }
+
+  // Student Portal Authentication & Protection
+  if (pathname.startsWith('/portal-mahasiswa') || pathname.startsWith('/api/mahasiswa/')) {
+    const studentToken = req.cookies.get(STUDENT_COOKIE)?.value
+    let studentSession = null
+    if (studentToken) {
+      studentSession = await verifyStudentToken(studentToken)
+    }
+
+    if (!studentSession) {
+      if (pathname.startsWith('/api')) {
+        const res = NextResponse.json(
+          { error: 'Unauthorized: Sesi mahasiswa telah berakhir. Silakan login kembali.' },
+          { status: 401 }
+        )
+        return addSecurityHeaders(res)
+      }
+      return addSecurityHeaders(NextResponse.redirect(new URL('/portal-mahasiswa/login', req.url)))
+    }
+
+    const requestHeaders = new Headers(req.headers)
+    requestHeaders.set('x-student-nim', studentSession.nim)
+    requestHeaders.set('x-student-name', studentSession.name)
+    requestHeaders.set('x-student-prodi', studentSession.prodiCode)
+    requestHeaders.set('x-user-role', 'mahasiswa')
+
+    return addSecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }))
   }
 
   let session: SessionPayload | null = null

@@ -169,18 +169,22 @@ model PrediksiKelas {
 }
 
 model Mahasiswa {
-  nim       String   @id
-  name      String
-  prodi     String
-  prodiCode String?
-  semester  Int      @default(1)
-  status    String   @default("Aktif")
-  ipk       String   @default("0.00")
-  phone     String?
-  email     String?
-  syncedAt  DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  nim                  String                 @id
+  name                 String
+  prodi                String
+  prodiCode            String?
+  semester             Int                    @default(1)
+  status               String                 @default("Aktif")
+  ipk                  String                 @default("0.00")
+  phone                String?
+  email                String?
+  password             String?                // Hashed password bcryptjs
+  kurikulum            String?                @default("2024")
+  lastLoginAt          DateTime?
+  syncedAt             DateTime               @default(now())
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  pengajuanPengguguran PengajuanPengguguran[]
 
   @@index([prodi])
   @@index([status])
@@ -258,9 +262,10 @@ model PengajuanPengguguran {
   periode               PeriodePengguguran  @relation(fields: [periodeId], references: [id])
   
   // Pengaju & Mahasiswa
-  pengajuId             String
-  pengaju               User                @relation("PengajuUser", fields: [pengajuId], references: [id])
+  pengajuId             String?             // Opsional jika diajukan mandiri oleh mahasiswa
+  pengaju               User?               @relation("PengajuUser", fields: [pengajuId], references: [id])
   nim                   String
+  mahasiswa             Mahasiswa?          @relation(fields: [nim], references: [nim])
   namaMahasiswa         String
   
   // Program Studi
@@ -274,9 +279,12 @@ model PengajuanPengguguran {
   namaMatkul            String
   sks                   Int                 @default(3)
   kategoriMatkul        MataKuliahKategori  @default(NON_INTI)
+  kurikulum             String?             @default("2024")
   
-  // Alasan & Status
+  // Alasan, Lampiran, & Status
   alasan                String              @db.Text
+  lampiranUrl           String?
+  lampiranNama          String?
   status                StatusPengguguran   @default(MENUNGGU_VERIFIKASI_PRODI)
   
   // Verifikasi Prodi

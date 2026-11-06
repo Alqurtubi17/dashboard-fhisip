@@ -57,3 +57,32 @@ export async function verifyRefreshToken(token: string): Promise<SessionPayload 
 
 export const ACCESS_COOKIE = 'amp_access_token'
 export const REFRESH_COOKIE = 'amp_refresh_token'
+
+export type StudentSessionPayload = {
+  nim: string
+  name: string
+  prodiCode: string
+  prodi: string
+  role: 'mahasiswa'
+}
+
+export const STUDENT_COOKIE = 'amp_student_session'
+
+export async function signStudentToken(payload: StudentSessionPayload): Promise<string> {
+  return new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('24h')
+    .sign(ACCESS_SECRET)
+}
+
+export async function verifyStudentToken(token: string): Promise<StudentSessionPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, ACCESS_SECRET)
+    if (payload.role !== 'mahasiswa') return null
+    return payload as unknown as StudentSessionPayload
+  } catch {
+    return null
+  }
+}
+
