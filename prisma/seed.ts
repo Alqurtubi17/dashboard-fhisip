@@ -46,6 +46,7 @@ const MENUS: {
     children: [
       { name: 'Jadwal dan Agenda Akademik', icon: 'Calendar', url: '/akademik/jadwal', permissionKey: 'akademik.view', sort: 1 },
       { name: 'Kebutuhan Kelas & Tutor', icon: 'LayoutGrid', url: '/akademik/kelas', permissionKey: 'akademik.view', sort: 2 },
+      { name: 'Pengguguran Mata Kuliah', icon: 'BookX', url: '/akademik/pengguguran', permissionKey: 'akademik.view', sort: 3 },
     ],
   },
   { name: 'Kemahasiswaan', icon: 'Award', url: '/kemahasiswaan/prestasi', permissionKey: 'kemahasiswaan.view', sort: 4 },

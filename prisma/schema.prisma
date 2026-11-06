@@ -8,16 +8,20 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  roleId    String
-  role      Role     @relation(fields: [roleId], references: [id])
-  status    Status   @default(ACTIVE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  auditLogs AuditLog[]
+  id                String                 @id @default(cuid())
+  name              String
+  email             String                 @unique
+  password          String
+  roleId            String
+  role              Role                   @relation(fields: [roleId], references: [id])
+  prodiCode         String?                // Opsional: Asosiasi prodi (misal untuk Kaprodi)
+  status            Status                 @default(ACTIVE)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  auditLogs         AuditLog[]
+  pengajuanDibuat   PengajuanPengguguran[] @relation("PengajuUser")
+  verifikasiProdi   PengajuanPengguguran[] @relation("VerifikatorProdi")
+  keputusanAkademik PengajuanPengguguran[] @relation("KeputusanAkademik")
 
   @@map("users")
 }
@@ -163,3 +167,159 @@ model PrediksiKelas {
   @@unique([masa, kodeMatkul])
   @@map("prediksi_kelas")
 }
+
+model Mahasiswa {
+  nim       String   @id
+  name      String
+  prodi     String
+  prodiCode String?
+  semester  Int      @default(1)
+  status    String   @default("Aktif")
+  ipk       String   @default("0.00")
+  phone     String?
+  email     String?
+  syncedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([prodi])
+  @@index([status])
+  @@index([semester])
+  @@index([name])
+  @@map("mahasiswa")
+}
+
+enum MataKuliahKategori {
+  INTI
+  NON_INTI
+}
+
+enum StatusPengguguran {
+  MENUNGGU_VERIFIKASI_PRODI
+  DITOLAK_PRODI
+  DISETUJUI_PRODI
+  DITOLAK_AKADEMIK
+  DISETUJUI_AKADEMIK
+}
+
+model MataKuliah {
+  id          String             @id @default(cuid())
+  kodeMatkul  String             @unique
+  namaMatkul  String
+  sks         Int                @default(3)
+  prodiCode   String
+  prodiName   String
+  kategori    MataKuliahKategori @default(NON_INTI)
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  pengajuan   PengajuanPengguguran[]
+
+  @@index([prodiCode])
+  @@index([kategori])
+  @@map("mata_kuliah")
+}
+
+model PeriodePengguguran {
+  id                      String                 @id @default(cuid())
+  tahunAkademik           String                 // Contoh: "2026/2027 Ganjil"
+  semester                String                 // Contoh: "20261"
+  nama                    String                 // Contoh: "Periode Pengguguran Semester 2026.1"
+  isActive                Boolean                @default(true)
+  
+  // Timeline Stages (WIB)
+  pengajuanStart          DateTime
+  pengajuanEnd            DateTime
+  
+  verifikasiProdiStart    DateTime
+  verifikasiProdiEnd      DateTime
+  
+  keputusanAkademikStart  DateTime
+  keputusanAkademikEnd    DateTime
+  
+  pengumumanDate          DateTime?
+  
+  keterangan              String?                @db.Text
+  alasanPerpanjangan      String?                @db.Text
+
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  pengajuan               PengajuanPengguguran[]
+
+  @@map("periode_pengguguran")
+}
+
+model PengajuanPengguguran {
+  id                    String              @id @default(cuid())
+  nomorPengajuan        String              @unique // Contoh: "PG-20261-0001"
+  periodeId             String
+  periode               PeriodePengguguran  @relation(fields: [periodeId], references: [id])
+  
+  // Pengaju & Mahasiswa
+  pengajuId             String
+  pengaju               User                @relation("PengajuUser", fields: [pengajuId], references: [id])
+  nim                   String
+  namaMahasiswa         String
+  
+  // Program Studi
+  prodiCode             String
+  prodiName             String
+  
+  // Mata Kuliah
+  mataKuliahId          String
+  mataKuliah            MataKuliah          @relation(fields: [mataKuliahId], references: [id])
+  kodeMatkul            String
+  namaMatkul            String
+  sks                   Int                 @default(3)
+  kategoriMatkul        MataKuliahKategori  @default(NON_INTI)
+  
+  // Alasan & Status
+  alasan                String              @db.Text
+  status                StatusPengguguran   @default(MENUNGGU_VERIFIKASI_PRODI)
+  
+  // Verifikasi Prodi
+  verifikatorProdiId    String?
+  verifikatorProdi      User?               @relation("VerifikatorProdi", fields: [verifikatorProdiId], references: [id])
+  verifikatorProdiName  String?
+  verifikasiProdiAt     DateTime?
+  catatanProdi          String?             @db.Text
+  
+  // Keputusan Akademik
+  keputusanAkademikId   String?
+  keputusanAkademikUser User?               @relation("KeputusanAkademik", fields: [keputusanAkademikId], references: [id])
+  keputusanAkademikName String?
+  keputusanAkademikAt   DateTime?
+  catatanAkademik       String?             @db.Text
+  
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  riwayat               RiwayatPengguguran[]
+
+  @@index([prodiCode])
+  @@index([status])
+  @@index([nim])
+  @@index([periodeId])
+  @@index([mataKuliahId])
+  @@map("pengajuan_pengguguran")
+}
+
+model RiwayatPengguguran {
+  id          String               @id @default(cuid())
+  pengajuanId String
+  pengajuan   PengajuanPengguguran @relation(fields: [pengajuanId], references: [id], onDelete: Cascade)
+  statusAwal  StatusPengguguran?
+  statusAkhir StatusPengguguran
+  actorId     String?
+  actorName   String
+  actorRole   String
+  catatan     String?              @db.Text
+  action      String               // SUBMIT, VERIFIKASI_PRODI_SETUJU, VERIFIKASI_PRODI_TOLAK, AKADEMIK_SETUJU, AKADEMIK_TOLAK, PERPANJANGAN_PERIODE
+  createdAt   DateTime             @default(now())
+
+  @@index([pengajuanId])
+  @@map("riwayat_pengguguran")
+}
+

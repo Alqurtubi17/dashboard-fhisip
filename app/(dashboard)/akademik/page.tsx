@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useState } from 'react'
-import { BookOpen, Calendar, Star, BookMarked } from 'lucide-react'
+import Link from 'next/link'
+import { BookOpen, Calendar, Star, BookMarked, BookX, ArrowRight } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 
 export default function AkademikPage() {
@@ -27,9 +28,19 @@ export default function AkademikPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-800">Modul Akademik</h1>
-        <p className="text-slate-500 text-sm">Kelola kurikulum, jadwal perkuliahan, dan penilaian mahasiswa</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-800">Modul Akademik</h1>
+          <p className="text-slate-500 text-sm">Kelola kurikulum, jadwal perkuliahan, dan penilaian mahasiswa</p>
+        </div>
+        <Link
+          href="/akademik/pengguguran"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#002B49] text-white hover:bg-[#003B64] text-xs font-semibold shadow-sm transition"
+        >
+          <BookX className="w-4 h-4 text-amber-300" />
+          <span>Pengguguran Mata Kuliah</span>
+          <ArrowRight className="w-3.5 h-3.5 ml-1" />
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

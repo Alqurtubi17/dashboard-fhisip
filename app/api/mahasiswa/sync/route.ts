@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { verifyAccessToken, ACCESS_COOKIE } from '@/lib/auth'
 import { getExternalToken } from '@/lib/external-auth'
 import { extractSemester } from '@/lib/mahasiswa-utils'
@@ -96,6 +97,12 @@ export async function POST(req: Request) {
         let totalSyncedInRun = 0
         const concurrency = 3
 
+        console.log(`\n🚀 [SYNC MAHASISWA] Memulai sinkronisasi data mahasiswa...`)
+        console.log(`   - Target Halaman : ${isAll ? 'Seluruh Data (maks 2000 hal)' : `${pagesToSync} halaman`}`)
+        console.log(`   - Mulai Halaman  : #${startPage}`)
+        console.log(`   - Concurrency    : ${concurrency} request paralel per batch`)
+        console.log(`   - Limit per hal  : ${limitPerPage} rekaman`)
+
         for (let chunkStart = 0; chunkStart < pagesToSync; chunkStart += concurrency) {
           const chunkPages = Array.from(
             { length: Math.min(concurrency, pagesToSync - chunkStart) },
@@ -103,6 +110,8 @@ export async function POST(req: Request) {
           )
 
           const percentage = Math.min(99, Math.round((Math.min(chunkStart + concurrency, pagesToSync) / pagesToSync) * 100))
+
+          console.log(`\n⏳ [SYNC MAHASISWA] Mengunduh Halaman API #${chunkPages[0]} s/d #${chunkPages[chunkPages.length - 1]} (${percentage}%)...`)
 
           send({
             type: 'progress',
@@ -153,6 +162,7 @@ export async function POST(req: Request) {
 
           const chunkRawItems = parallelFetchResults.flat()
           if (chunkRawItems.length === 0) {
+            console.log(`ℹ️ [SYNC MAHASISWA] Halaman #${chunkPages[0]} tidak mengembalikan data lagi. Sinkronisasi mencapai batas akhir data.`)
             break
           }
 
@@ -183,53 +193,54 @@ export async function POST(req: Request) {
                 : null,
           }))
 
-          // Deduplicate NIMs
+          // Deduplicate NIMs and ignore invalid ones
           const uniqueNimMap = new Map<string, typeof mappedItems[0]>()
           for (const item of mappedItems) {
-            uniqueNimMap.set(item.nim, item)
+            if (item.nim && item.nim.length > 3) {
+              uniqueNimMap.set(item.nim, item)
+            }
           }
           const deduplicatedItems = Array.from(uniqueNimMap.values())
 
-          // Bulk upsert in chunks of 100
-          const upsertBatchSize = 100
+          console.log(`   ↳ Berhasil diunduh: ${chunkRawItems.length} data (${deduplicatedItems.length} NIM unik). Menyimpan massal ke database...`)
+
+          // High-Performance Bulk Upsert via PostgreSQL ON CONFLICT in chunks of 500
+          const upsertBatchSize = 500
           for (let i = 0; i < deduplicatedItems.length; i += upsertBatchSize) {
             const batch = deduplicatedItems.slice(i, i + upsertBatchSize)
-            await Promise.all(
-              batch.map((st) =>
-                (prisma as any).mahasiswa.upsert({
-                  where: { nim: st.nim },
-                  update: {
-                    name: st.name,
-                    prodi: st.prodi,
-                    prodiCode: st.prodiCode,
-                    semester: st.semester,
-                    status: st.status,
-                    ipk: st.ipk,
-                    phone: st.phone,
-                    email: st.email,
-                    syncedAt: new Date(),
-                  },
-                  create: {
-                    nim: st.nim,
-                    name: st.name,
-                    prodi: st.prodi,
-                    prodiCode: st.prodiCode,
-                    semester: st.semester,
-                    status: st.status,
-                    ipk: st.ipk,
-                    phone: st.phone,
-                    email: st.email,
-                    syncedAt: new Date(),
-                  },
-                })
-              )
+            const now = new Date()
+
+            const valueClauses = batch.map(
+              (st) =>
+                Prisma.sql`(${st.nim}, ${st.name}, ${st.prodi}, ${st.prodiCode}, ${st.semester}, ${st.status}, ${st.ipk}, ${st.phone}, ${st.email}, ${now}, ${now}, ${now})`
             )
+
+            await prisma.$executeRaw`
+              INSERT INTO "mahasiswa" (
+                "nim", "name", "prodi", "prodiCode", "semester", "status", "ipk", "phone", "email", "syncedAt", "createdAt", "updatedAt"
+              )
+              VALUES ${Prisma.join(valueClauses)}
+              ON CONFLICT ("nim") DO UPDATE SET
+                "name" = EXCLUDED."name",
+                "prodi" = EXCLUDED."prodi",
+                "prodiCode" = EXCLUDED."prodiCode",
+                "semester" = EXCLUDED."semester",
+                "status" = EXCLUDED."status",
+                "ipk" = EXCLUDED."ipk",
+                "phone" = EXCLUDED."phone",
+                "email" = EXCLUDED."email",
+                "syncedAt" = EXCLUDED."syncedAt",
+                "updatedAt" = NOW()
+            `
           }
 
           totalSyncedInRun += mappedItems.length
+          console.log(`   ✔ Batch #${chunkPages[0]}-${chunkPages[chunkPages.length - 1]} tersimpan! Total data bertambah: +${totalSyncedInRun.toLocaleString('id-ID')}`)
         }
 
         const totalInDb = await (prisma as any).mahasiswa.count()
+
+        console.log(`\n🎉 [SYNC MAHASISWA] Selesai! Berhasil memperbarui +${totalSyncedInRun.toLocaleString('id-ID')} rekaman. Total di DB: ${totalInDb.toLocaleString('id-ID')}.\n`)
 
         send({
           type: 'complete',
@@ -240,7 +251,7 @@ export async function POST(req: Request) {
           totalInDb,
         })
       } catch (error: any) {
-        console.error('Failed parallel sync mahasiswa:', error)
+        console.error('❌ [SYNC MAHASISWA] Terjadi kesalahan saat sinkronisasi:', error)
         send({
           type: 'error',
           error: 'Gagal memperbarui data karena gangguan koneksi server. Silakan coba beberapa saat lagi.',
