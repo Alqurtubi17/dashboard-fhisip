@@ -80,3 +80,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Gagal memuat daftar mata kuliah' }, { status: 500 })
   }
 }
+

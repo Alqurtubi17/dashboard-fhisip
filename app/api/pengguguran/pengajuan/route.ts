@@ -4,3 +4,4 @@ import { POST as postMahasiswaPengguguran } from '@/app/api/mahasiswa/penggugura
 export async function POST(req: NextRequest) {
   return postMahasiswaPengguguran(req)
 }
+

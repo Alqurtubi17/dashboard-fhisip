@@ -87,3 +87,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Gagal memuat profil mahasiswa' }, { status: 500 })
   }
 }
+

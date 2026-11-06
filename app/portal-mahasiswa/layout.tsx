@@ -205,3 +205,4 @@ export default function StudentPortalLayout({ children }: { children: React.Reac
     </div>
   )
 }
+

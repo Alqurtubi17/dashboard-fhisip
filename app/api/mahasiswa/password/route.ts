@@ -66,3 +66,4 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Gagal memperbarui password' }, { status: 500 })
   }
 }
+

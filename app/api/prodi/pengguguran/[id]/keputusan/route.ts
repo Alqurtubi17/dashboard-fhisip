@@ -8,3 +8,4 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
 export async function PATCH(req: NextRequest, ctx: { params: { id: string } }) {
   return verifikasiProdi(req, ctx)
 }
+

@@ -4,3 +4,4 @@ import { GET as getMahasiswaPengguguran } from '@/app/api/mahasiswa/pengguguran/
 export async function GET(req: NextRequest) {
   return getMahasiswaPengguguran(req)
 }
+
