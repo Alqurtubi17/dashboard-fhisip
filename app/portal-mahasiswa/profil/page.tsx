@@ -11,6 +11,7 @@ import {
   Loader2,
   Lock,
 } from 'lucide-react'
+import { cleanStudentName } from '@/lib/pengguguran-utils'
 
 export default function StudentProfilePage() {
   const [student, setStudent] = useState<any>(null)
@@ -101,7 +102,7 @@ export default function StudentProfilePage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
             <span className="font-bold text-slate-400 text-[10px] uppercase tracking-wider">Nama Mahasiswa</span>
-            <p className="font-bold text-slate-800 text-sm">{student?.name}</p>
+            <p className="font-bold text-slate-800 text-sm">{cleanStudentName(student?.name)}</p>
           </div>
 
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">

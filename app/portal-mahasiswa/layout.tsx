@@ -14,9 +14,9 @@ import {
   X,
   ChevronDown,
   Clock,
-  Sparkles,
 } from 'lucide-react'
 import { FhisipLogo } from '@/components/ui/fhisip-logo'
+import { cleanStudentName } from '@/lib/pengguguran-utils'
 
 type StudentProfile = {
   nim: string
@@ -90,11 +90,10 @@ export default function StudentPortalLayout({ children }: { children: React.Reac
             <Link href="/portal-mahasiswa/dashboard" className="flex items-center gap-2.5 group">
               <FhisipLogo className="w-8 h-8" variant="gold" />
               <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-white text-base tracking-wide">FHISIP UT</span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-400 text-slate-950 uppercase tracking-wider">
-                    PORTAL MAHASISWA
-                  </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white text-base tracking-tight">FHISIP UT</span>
+                  <span className="text-slate-400 text-xs hidden sm:inline">|</span>
+                  <span className="text-slate-300 text-xs font-medium hidden sm:inline">Layanan Mahasiswa</span>
                 </div>
                 <p className="text-[10px] text-slate-300 font-medium hidden sm:block">
                   Sistem Layanan Akademik Mandiri
@@ -124,19 +123,20 @@ export default function StudentPortalLayout({ children }: { children: React.Reac
             })}
           </nav>
 
-          {/* User Profile Pill & Logout */}
+          {/* User Profile & Logout */}
           <div className="hidden md:flex items-center gap-3">
             {student && (
               <div className="text-right">
-                <div className="text-xs font-bold text-white truncate max-w-[160px]">{student.name}</div>
-                <div className="text-[10px] font-mono text-amber-300">NIM: {student.nim}</div>
+                <div className="text-xs font-semibold text-white truncate max-w-[200px]">
+                  {cleanStudentName(student.name)}
+                </div>
               </div>
             )}
             <button
               onClick={handleLogout}
               disabled={loggingOut}
               className="p-2 rounded-xl bg-white/10 hover:bg-rose-600/80 text-slate-200 hover:text-white transition shadow-sm"
-              title="Keluar dari Portal Mahasiswa"
+              title="Keluar dari Layanan Mahasiswa"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -158,9 +158,7 @@ export default function StudentPortalLayout({ children }: { children: React.Reac
           <div className="md:hidden border-t border-white/10 bg-[#00223A] px-4 pt-3 pb-5 space-y-2">
             {student && (
               <div className="p-3 mb-2 rounded-xl bg-white/5 border border-white/10">
-                <div className="text-xs font-bold text-white">{student.name}</div>
-                <div className="text-[11px] font-mono text-amber-300">NIM: {student.nim}</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">{student.prodi}</div>
+                <div className="text-xs font-semibold text-white">{cleanStudentName(student.name)}</div>
               </div>
             )}
 

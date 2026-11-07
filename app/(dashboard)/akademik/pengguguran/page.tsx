@@ -1142,7 +1142,7 @@ export default function PengguguranMataKuliahPage() {
                     <th className="px-4 py-2.5">Nama Mata Kuliah</th>
                     <th className="px-4 py-2.5">SKS</th>
                     <th className="px-4 py-2.5">Program Studi</th>
-                    <th className="px-4 py-2.5">Kategori Resmi</th>
+                    <th className="px-4 py-2.5">Kategori</th>
                     {canManagePeriode && <th className="px-4 py-2.5 text-center">Kelola Kategori</th>}
                   </tr>
                 </thead>
@@ -1504,7 +1504,7 @@ export default function PengguguranMataKuliahPage() {
                     <span className="text-slate-700">{selectedItem.sks} SKS</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block">Kategori Resmi:</span>
+                    <span className="text-slate-400 block">Kategori:</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       {selectedItem.kategoriMatkul} (Dapat Diajukan)
                     </span>

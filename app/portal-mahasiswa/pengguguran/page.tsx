@@ -13,17 +13,15 @@ import {
   XCircle,
   ArrowRight,
   Loader2,
-  RefreshCw,
   Info,
   Check,
   X,
   Building2,
-  Sparkles,
   FileCheck2,
   Paperclip,
 } from 'lucide-react'
 import { AcademicCourse } from '@/lib/academic-api'
-import { formatWIBDateShort } from '@/lib/pengguguran-utils'
+import { formatWIBDateShort, cleanStudentName } from '@/lib/pengguguran-utils'
 
 export default function StudentPengguguranPage() {
   const router = useRouter()
@@ -153,43 +151,16 @@ export default function StudentPengguguranPage() {
   return (
     <div className="space-y-6">
       {/* Header Page */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-blue-50 text-blue-600">
-              <BookX className="w-5 h-5" />
-            </span>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Ajukan Pengguguran Mata Kuliah</h1>
-          </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Pilih mata kuliah Non-Inti dari kurikulum aktif Anda untuk diajukan penggugurannya ke Program Studi.
-          </p>
-        </div>
-
-        {/* Sync / Source Badge */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center gap-2">
-          <div
-            className={`px-3 py-1.5 rounded-xl border text-[11px] font-semibold flex items-center gap-1.5 ${
-              apiMeta.source === 'EXTERNAL_API'
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                : 'bg-blue-50 text-blue-800 border-blue-200'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>
-              {apiMeta.source === 'EXTERNAL_API' ? 'Tersinkron Academic API' : 'Repositori Akademik Resmi'}
-            </span>
-          </div>
-
-          <button
-            onClick={() => loadCourses()}
-            disabled={loading}
-            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600"
-            title="Muat Ulang Mata Kuliah"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          <span className="p-2 rounded-xl bg-blue-50 text-blue-600">
+            <BookX className="w-5 h-5" />
+          </span>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Ajukan Pengguguran Mata Kuliah</h1>
         </div>
+        <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          Pilih mata kuliah Non-Inti dari kurikulum aktif Anda untuk diajukan penggugurannya ke Program Studi.
+        </p>
       </div>
 
       {/* Timeline Status Alert */}
@@ -252,7 +223,7 @@ export default function StudentPengguguranPage() {
                   <th className="px-4 py-3.5">Kode MK</th>
                   <th className="px-4 py-3.5">Nama Mata Kuliah</th>
                   <th className="px-4 py-3.5">SKS</th>
-                  <th className="px-4 py-3.5">Kategori Resmi</th>
+                  <th className="px-4 py-3.5">Kategori</th>
                   <th className="px-4 py-3.5">Status Kelayakan</th>
                   <th className="px-4 py-3.5 text-center">Tindakan</th>
                 </tr>
@@ -372,9 +343,9 @@ export default function StudentPengguguranPage() {
               {/* Data Mahasiswa (Otomatis) */}
               <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
                 <span className="font-bold text-[10px] text-slate-400 uppercase tracking-wider block">
-                  Identitas Pengaju (Tervalidasi Otomatis)
+                  Identitas Pengaju
                 </span>
-                <div className="font-bold text-slate-800 text-sm">{student?.name}</div>
+                <div className="font-bold text-slate-800 text-sm">{cleanStudentName(student?.name)}</div>
                 <div className="text-slate-600 font-mono">NIM: {student?.nim}</div>
                 <div className="text-slate-600">{student?.prodi}</div>
               </div>

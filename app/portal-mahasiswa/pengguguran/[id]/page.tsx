@@ -298,7 +298,7 @@ export default function StudentPengguguranDetailPage() {
               <span className="font-semibold text-slate-700">{item.sks} SKS</span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[11px]">Kategori Resmi:</span>
+              <span className="text-slate-400 block text-[11px]">Kategori:</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Non-Inti (Dapat Diajukan)
               </span>

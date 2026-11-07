@@ -18,7 +18,7 @@ import {
   Sparkles,
   Info,
 } from 'lucide-react'
-import { STATUS_MAP, formatWIBDate, formatWIBDateShort } from '@/lib/pengguguran-utils'
+import { STATUS_MAP, formatWIBDate, formatWIBDateShort, cleanStudentName } from '@/lib/pengguguran-utils'
 
 export default function StudentDashboardPage() {
   const [data, setData] = useState<any>(null)
@@ -59,17 +59,13 @@ export default function StudentDashboardPage() {
   return (
     <div className="space-y-6">
       {/* Student Welcome Hero Banner */}
-      <div className="bg-gradient-to-r from-[#002B49] via-[#003B64] to-[#014D82] text-white p-6 sm:p-8 rounded-3xl shadow-xl shadow-blue-950/10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
-            <GraduationCap className="w-4 h-4" />
-            <span>Mahasiswa Aktif FHISIP UT</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Selamat Datang, {student?.name}!
+      <div className="bg-[#002B49] text-white p-6 sm:p-7 rounded-2xl border border-slate-700/40 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-1.5">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+            Selamat Datang, {cleanStudentName(student?.name)}
           </h1>
-          <p className="text-xs sm:text-sm text-slate-200 font-medium">
-            NIM: <span className="font-mono font-bold text-amber-300">{student?.nim}</span> • Program Studi:{' '}
+          <p className="text-xs sm:text-sm text-slate-300">
+            NIM: <span className="font-mono font-semibold text-amber-300">{student?.nim}</span> • Program Studi:{' '}
             <span className="font-semibold text-white">{student?.prodi}</span> (Semester {student?.semester})
           </p>
         </div>
@@ -77,10 +73,10 @@ export default function StudentDashboardPage() {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <Link
             href="/portal-mahasiswa/pengguguran"
-            className={`flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs font-bold shadow-lg transition-all ${
+            className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all ${
               timeline?.isPengajuanOpen
-                ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-500/20 active:scale-95'
-                : 'bg-white/20 text-white/60 cursor-not-allowed'
+                ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold active:scale-95'
+                : 'bg-white/10 text-white/50 cursor-not-allowed'
             }`}
           >
             <BookX className="w-4 h-4" />

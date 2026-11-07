@@ -67,14 +67,9 @@ export default function StudentLoginPage() {
               <FhisipLogo className="w-12 h-12" variant="gold" />
             </div>
             <div>
-              <div className="flex items-center justify-center gap-1.5">
-                <span className="text-xs font-extrabold uppercase tracking-widest text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                  PORTAL MAHASISWA
-                </span>
-              </div>
-              <h1 className="text-2xl font-extrabold text-slate-900 mt-2 tracking-tight">FHISIP UT</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">FHISIP UT</h1>
               <p className="text-xs text-slate-500 mt-1">
-                Layanan Pengajuan Pengguguran Mata Kuliah Mandiri
+                Layanan Pengajuan Pengguguran Mata Kuliah
               </p>
             </div>
           </div>

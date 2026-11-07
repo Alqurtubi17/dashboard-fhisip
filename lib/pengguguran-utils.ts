@@ -19,6 +19,11 @@ export function getProdiNameByCode(code: string): string {
   return found ? found.name : code
 }
 
+export function cleanStudentName(name: string | null | undefined): string {
+  if (!name) return ''
+  return name.replace(/\s*\(.*?\)\s*/g, '').trim()
+}
+
 export type StatusInfo = {
   label: string
   color: string
