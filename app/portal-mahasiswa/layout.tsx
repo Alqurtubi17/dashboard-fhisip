@@ -83,25 +83,34 @@ export default function StudentPortalLayout({ children }: { children: React.Reac
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-[#002B49] text-white shadow-md border-b border-white/10">
+      <header className="sticky top-0 z-40 bg-[#00223A] text-white shadow-md border-b border-white/10 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           {/* Logo & Portal Brand */}
           <div className="flex items-center gap-3">
             <Link href="/portal-mahasiswa/dashboard" className="flex items-center gap-3 group">
-              <FhisipLogo className="w-9 h-9" variant="gold" />
-              <span className="font-extrabold text-white text-xl tracking-wider">FHISIP</span>
+              <div className="p-1.5 rounded-xl bg-white/5 border border-white/10 group-hover:bg-white/10 transition shadow-inner">
+                <FhisipLogo className="w-7 h-7" variant="gold" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-extrabold text-white text-base tracking-wide leading-none group-hover:text-amber-300 transition">
+                  FHISIP
+                </span>
+                <span className="text-[10px] text-slate-300 font-medium tracking-normal mt-1 leading-none">
+                  Universitas Terbuka
+                </span>
+              </div>
             </Link>
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1.5 bg-white/5 p-1 rounded-2xl border border-white/10">
             {navLinks.map((link) => {
               const isActive = pathname === link.href || (link.href !== '/portal-mahasiswa/dashboard' && pathname.startsWith(link.href))
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                     isActive
                       ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
                       : 'text-slate-200 hover:bg-white/10 hover:text-white'
@@ -115,19 +124,22 @@ export default function StudentPortalLayout({ children }: { children: React.Reac
           </nav>
 
           {/* User Profile & Logout */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2">
             {student && (
-              <div className="text-right">
-                <div className="text-xs font-semibold text-white truncate max-w-[200px]">
-                  {cleanStudentName(student.name)}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10">
+                <div className="w-6 h-6 rounded-lg bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center shadow-sm">
+                  {cleanStudentName(student.name).charAt(0).toUpperCase()}
                 </div>
+                <span className="text-xs font-semibold text-white max-w-[150px] truncate">
+                  {cleanStudentName(student.name)}
+                </span>
               </div>
             )}
             <button
               onClick={handleLogout}
               disabled={loggingOut}
-              className="p-2 rounded-xl bg-white/10 hover:bg-rose-600/80 text-slate-200 hover:text-white transition shadow-sm"
-              title="Keluar dari Layanan Mahasiswa"
+              className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 transition border border-white/5 hover:border-rose-500/30"
+              title="Keluar dari Portal"
             >
               <LogOut className="w-4 h-4" />
             </button>

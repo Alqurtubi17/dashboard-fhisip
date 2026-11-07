@@ -54,22 +54,26 @@ export default function StudentRiwayatPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-7 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-blue-50 text-blue-600">
-              <History className="w-5 h-5" />
-            </span>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Riwayat Pengajuan Pengguguran</h1>
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-100 text-[#002B49] flex items-center justify-center font-bold shadow-sm">
+              <History className="w-5 h-5 text-blue-700" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                Riwayat Pengajuan Pengguguran
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Daftar lengkap seluruh permohonan pengguguran mata kuliah yang pernah Anda ajukan.
+              </p>
+            </div>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Daftar lengkap seluruh permohonan pengguguran mata kuliah yang pernah Anda ajukan.
-          </p>
         </div>
 
         <Link
           href="/portal-mahasiswa/pengguguran"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#002B49] hover:bg-[#003B64] text-white text-xs font-bold shadow-md transition"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#002B49] hover:bg-[#003B64] text-white text-xs font-bold shadow-sm transition active:scale-95"
         >
           <BookX className="w-4 h-4" />
           <span>Buat Pengajuan Baru</span>

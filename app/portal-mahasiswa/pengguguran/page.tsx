@@ -151,16 +151,28 @@ export default function StudentPengguguranPage() {
   return (
     <div className="space-y-6">
       {/* Header Page */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center gap-2">
-          <span className="p-2 rounded-xl bg-blue-50 text-blue-600">
-            <BookX className="w-5 h-5" />
-          </span>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Ajukan Pengguguran Mata Kuliah</h1>
+      <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-7 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-100 text-[#002B49] flex items-center justify-center font-bold shadow-sm">
+              <BookX className="w-5 h-5 text-blue-700" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                Pengajuan Pengguguran Mata Kuliah
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Program Studi: <strong className="text-slate-800">{student?.prodi}</strong>
+              </p>
+            </div>
+          </div>
         </div>
-        <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Pilih mata kuliah Non-Inti dari kurikulum aktif Anda untuk diajukan penggugurannya ke Program Studi.
-        </p>
+
+        <div className="flex items-center gap-2">
+          <div className="px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
+            {courses.length} Mata Kuliah Terdaftar
+          </div>
+        </div>
       </div>
 
       {/* Timeline Status Alert */}

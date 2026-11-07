@@ -59,24 +59,34 @@ export default function StudentDashboardPage() {
   return (
     <div className="space-y-6">
       {/* Student Welcome Hero Banner */}
-      <div className="bg-[#002B49] text-white p-6 sm:p-7 rounded-2xl border border-slate-700/40 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-1.5">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-            Selamat Datang, {cleanStudentName(student?.name)}
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-300">
-            NIM: <span className="font-mono font-semibold text-amber-300">{student?.nim}</span> • Program Studi:{' '}
-            <span className="font-semibold text-white">{student?.prodi}</span> (Semester {student?.semester})
-          </p>
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#00223A] via-[#002B49] to-[#013B63] text-white p-6 sm:p-8 rounded-3xl border border-white/10 shadow-xl shadow-blue-950/10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-3 relative z-10">
+          <div className="space-y-1">
+            <span className="text-[11px] font-semibold text-amber-300 tracking-wider uppercase">Layanan Akademik Mahasiswa</span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              Selamat Datang, {cleanStudentName(student?.name)}
+            </h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="px-3 py-1 rounded-xl bg-white/10 border border-white/10 text-white font-mono font-medium">
+              NIM: <strong className="text-amber-300">{student?.nim}</strong>
+            </span>
+            <span className="px-3 py-1 rounded-xl bg-white/10 border border-white/10 text-white font-medium">
+              {student?.prodi}
+            </span>
+            <span className="px-3 py-1 rounded-xl bg-white/10 border border-white/10 text-slate-200">
+              Semester {student?.semester}
+            </span>
+          </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 relative z-10">
           <Link
             href="/portal-mahasiswa/pengguguran"
-            className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all ${
+            className={`flex items-center justify-center gap-2.5 px-6 py-3 rounded-2xl text-xs font-bold shadow-lg transition-all ${
               timeline?.isPengajuanOpen
-                ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold active:scale-95'
-                : 'bg-white/10 text-white/50 cursor-not-allowed'
+                ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-500/20 active:scale-95'
+                : 'bg-white/10 text-white/50 cursor-not-allowed border border-white/10'
             }`}
           >
             <BookX className="w-4 h-4" />

@@ -63,13 +63,16 @@ export default function StudentLoginPage() {
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-white/20 p-8 sm:p-10 space-y-6">
           {/* Brand Header */}
           <div className="text-center space-y-3">
-            <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-slate-50 border border-slate-100 shadow-sm">
+            <div className="inline-flex items-center justify-center p-3.5 rounded-2xl bg-slate-50 border border-slate-100 shadow-md">
               <FhisipLogo className="w-12 h-12" variant="gold" />
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-wider">FHISIP</h1>
-              <p className="text-xs text-slate-500 mt-1">
-                Layanan Pengajuan Pengguguran Mata Kuliah
+              <h1 className="text-2xl font-black text-slate-900 tracking-wider">FHISIP</h1>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                Universitas Terbuka
+              </p>
+              <p className="text-xs text-slate-500 mt-2">
+                Portal Pengajuan Pengguguran Mata Kuliah
               </p>
             </div>
           </div>
