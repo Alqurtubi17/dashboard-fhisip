@@ -5,6 +5,8 @@ import { verifyStudentToken, STUDENT_COOKIE } from '@/lib/auth'
 import { createAuditLog } from '@/lib/audit'
 import { evaluatePeriodTimeline } from '@/lib/pengguguran-utils'
 
+export const dynamic = 'force-dynamic'
+
 async function getAuthenticatedStudent(req: Request) {
   let nim = req.headers.get('x-student-nim')
   if (!nim) {
