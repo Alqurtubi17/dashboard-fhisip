@@ -170,14 +170,14 @@ export default function StudentPengguguranPage() {
 
         <div className="flex items-center gap-2">
           <div className="px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
-            {courses.length} Mata Kuliah Terdaftar
+            {loading ? 'Memuat data...' : `${courses.length} Mata Kuliah Terdaftar`}
           </div>
         </div>
       </div>
 
       {/* Timeline Status Alert */}
-      {!isPengajuanOpen && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3 shadow-sm">
+      {!loading && !isPengajuanOpen && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3 shadow-sm animate-in fade-in duration-200">
           <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold text-sm">Periode Pengajuan Pengguguran Saat Ini Ditutup</p>
