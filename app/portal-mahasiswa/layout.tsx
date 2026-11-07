@@ -87,18 +87,9 @@ export default function StudentPortalLayout({ children }: { children: React.Reac
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           {/* Logo & Portal Brand */}
           <div className="flex items-center gap-3">
-            <Link href="/portal-mahasiswa/dashboard" className="flex items-center gap-2.5 group">
-              <FhisipLogo className="w-8 h-8" variant="gold" />
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-white text-base tracking-tight">FHISIP UT</span>
-                  <span className="text-slate-400 text-xs hidden sm:inline">|</span>
-                  <span className="text-slate-300 text-xs font-medium hidden sm:inline">Layanan Mahasiswa</span>
-                </div>
-                <p className="text-[10px] text-slate-300 font-medium hidden sm:block">
-                  Sistem Layanan Akademik Mandiri
-                </p>
-              </div>
+            <Link href="/portal-mahasiswa/dashboard" className="flex items-center gap-3 group">
+              <FhisipLogo className="w-9 h-9" variant="gold" />
+              <span className="font-extrabold text-white text-xl tracking-wider">FHISIP</span>
             </Link>
           </div>
 

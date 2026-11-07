@@ -151,36 +151,30 @@ export class AcademicApiService {
       // Abaikan jika LKAM offline, gunakan repositori kurikulum resmi
     }
 
-    // 3. Susun daftar lengkap:
-    // Tampilkan mata kuliah secara lengkap tanpa ada yang terpotong.
-    // Prioritaskan:
-    // 1. Mata kuliah prodi mahasiswa
-    // 2. Mata kuliah umum universitas (MKWU/MKDU)
-    // 3. Seluruh mata kuliah fakultas lainnya (agar mahasiswa dapat memilih mata kuliah lintas prodi/peminatan)
+    // 3. Susun daftar mata kuliah:
+    // Sesuaikan antara Program Studi mahasiswa dan mata kuliah yang diambil mahasiswa (LKAM)
     const studentProdiUpper = prodiCode.toUpperCase()
     const allItems = Array.from(officialMap.values())
 
-    const prodiSpecific: typeof allItems = []
-    const generalCourses: typeof allItems = []
-    const otherFacultyCourses: typeof allItems = []
+    let combinedList: typeof allItems = []
 
-    for (const c of allItems) {
-      if (c.prodiCode.toUpperCase() === studentProdiUpper) {
-        prodiSpecific.push(c)
-      } else if (
-        c.kodeMatkul.startsWith('MKWU') ||
-        c.kodeMatkul.startsWith('MKDU') ||
-        c.kodeMatkul.startsWith('ISIP') ||
-        c.kodeMatkul.startsWith('FSIP')
-      ) {
-        generalCourses.push(c)
-      } else {
-        otherFacultyCourses.push(c)
-      }
+    if (isFromLkam) {
+      // Jika mahasiswa memiliki data riwayat LKAM resmi, tampilkan mata kuliah yang telah diambil mahasiswa di LKAM
+      combinedList = allItems.filter(
+        (c) => c.id.startsWith('lkam-') || c.prodiCode.toUpperCase() === studentProdiUpper
+      )
+    } else {
+      // Tampilkan hanya mata kuliah kurikulum Program Studi mahasiswa bersangkutan + MKWU/MKDU universitas
+      const prodiSpecific = allItems.filter((c) => c.prodiCode.toUpperCase() === studentProdiUpper)
+      const generalCourses = allItems.filter(
+        (c) =>
+          c.kodeMatkul.startsWith('MKWU') ||
+          c.kodeMatkul.startsWith('MKDU') ||
+          c.kodeMatkul.startsWith('ISIP') ||
+          c.kodeMatkul.startsWith('FSIP')
+      )
+      combinedList = [...prodiSpecific, ...generalCourses]
     }
-
-    // Gabungkan seluruh daftar lengkap sehingga tidak ada mata kuliah yang kurang
-    const combinedList = [...prodiSpecific, ...generalCourses, ...otherFacultyCourses]
 
     // Deduplikasi
     const combinedMap = new Map<string, typeof allItems[0]>()
