@@ -12,14 +12,13 @@ import {
 } from '@/lib/auth'
 import { loginRateLimiter, apiRateLimiter } from '@/lib/rate-limit'
 import { getClientIp, isValidOrigin } from '@/lib/security'
+import { studentLoadBalancer } from '@/lib/load-balancer'
 
 // Routes and static assets that don't require authentication
 const PUBLIC_PATHS = [
   '/login',
   '/api/auth/login',
   '/api/auth/refresh',
-  '/portal-mahasiswa/login',
-  '/api/mahasiswa/auth/login',
   '/favicon.ico',
   '/icon.png',
   '/ut-logo.png',
@@ -103,32 +102,79 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/portal-mahasiswa/login', req.url))
   }
 
-  // Student Portal Authentication & Protection
-  if (pathname.startsWith('/portal-mahasiswa') || pathname.startsWith('/api/mahasiswa/')) {
+  // Student Portal Load Balancer, Protection & Routing
+  if (pathname.startsWith('/portal-mahasiswa') || pathname.startsWith('/api/mahasiswa')) {
+    // 1. Cluster overload / concurrency threshold check
+    if (studentLoadBalancer.isClusterOverloaded()) {
+      const res = NextResponse.json(
+        { error: 'Server Portal Mahasiswa sedang menerima antrean tinggi. Silakan coba kembali sesaat lagi.' },
+        { status: 503, headers: { 'Retry-After': '2' } }
+      )
+      return addSecurityHeaders(res)
+    }
+
+    // 2. Identify student session if exists
     const studentToken = req.cookies.get(STUDENT_COOKIE)?.value
     let studentSession = null
     if (studentToken) {
       studentSession = await verifyStudentToken(studentToken)
     }
 
+    // 3. Select balanced node using Sticky Session Hash (NIM or Client IP)
+    const routingKey = studentSession?.nim || clientIp || 'portal-client'
+    const targetNode = studentLoadBalancer.selectNode(routingKey)
+    studentLoadBalancer.acquireConnection(targetNode.id)
+
+    // Helper to inject load balancer telemetry into response
+    const attachLbHeaders = (res: NextResponse): NextResponse => {
+      res.headers.set('X-Load-Balancer-Node', targetNode.id)
+      res.headers.set('X-Load-Balancer-Region', targetNode.region)
+      res.headers.set('X-Load-Balancer-Status', targetNode.status)
+      res.headers.set('X-Load-Balancer-Latency', `${targetNode.averageLatencyMs}ms`)
+      res.headers.set('X-Load-Balancer-Active', String(targetNode.activeConnections))
+      return addSecurityHeaders(res)
+    }
+
+    // 4. Public Student Endpoints (Login page, Auth API, and Load Balancer telemetry)
+    const isPublicStudentPath =
+      pathname === '/portal-mahasiswa/login' ||
+      pathname === '/api/mahasiswa/auth/login' ||
+      pathname === '/api/mahasiswa/load-balancer'
+
+    if (isPublicStudentPath) {
+      const requestHeaders = new Headers(req.headers)
+      requestHeaders.set('x-lb-node-id', targetNode.id)
+      requestHeaders.set('x-lb-region', targetNode.region)
+      requestHeaders.set('x-lb-status', targetNode.status)
+
+      const res = NextResponse.next({ request: { headers: requestHeaders } })
+      return attachLbHeaders(res)
+    }
+
+    // 5. Protected Student Endpoints: Require valid student session
     if (!studentSession) {
       if (pathname.startsWith('/api')) {
         const res = NextResponse.json(
           { error: 'Unauthorized: Sesi mahasiswa telah berakhir. Silakan login kembali.' },
           { status: 401 }
         )
-        return addSecurityHeaders(res)
+        return attachLbHeaders(res)
       }
-      return addSecurityHeaders(NextResponse.redirect(new URL('/portal-mahasiswa/login', req.url)))
+      return attachLbHeaders(NextResponse.redirect(new URL('/portal-mahasiswa/login', req.url)))
     }
 
+    // 6. Authorized student request: Forward with student & LB headers
     const requestHeaders = new Headers(req.headers)
     requestHeaders.set('x-student-nim', studentSession.nim)
     requestHeaders.set('x-student-name', studentSession.name)
     requestHeaders.set('x-student-prodi', studentSession.prodiCode)
     requestHeaders.set('x-user-role', 'mahasiswa')
+    requestHeaders.set('x-lb-node-id', targetNode.id)
+    requestHeaders.set('x-lb-region', targetNode.region)
+    requestHeaders.set('x-lb-status', targetNode.status)
 
-    return addSecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }))
+    const res = NextResponse.next({ request: { headers: requestHeaders } })
+    return attachLbHeaders(res)
   }
 
   let session: SessionPayload | null = null

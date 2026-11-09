@@ -12,6 +12,8 @@ import {
   ShieldCheck,
   CheckCircle2,
   Info,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { FhisipLogo } from '@/components/ui/fhisip-logo'
 
@@ -19,6 +21,7 @@ export default function StudentLoginPage() {
   const router = useRouter()
   const [nim, setNim] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -110,13 +113,26 @@ export default function StudentLoginPage() {
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   placeholder="Masukkan password Anda"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-xs bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  className="w-full pl-10 pr-10 py-3 rounded-xl border border-slate-200 text-xs bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-1 rounded-lg focus:outline-none"
+                  title={showPassword ? 'Sembunyikan password' : 'Lihat password'}
+                  aria-label={showPassword ? 'Sembunyikan password' : 'Lihat password'}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4 text-slate-600" />
+                  ) : (
+                    <Eye className="w-4 h-4 text-slate-400 hover:text-slate-600" />
+                  )}
+                </button>
               </div>
             </div>
 

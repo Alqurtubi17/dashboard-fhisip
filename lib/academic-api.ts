@@ -1,6 +1,7 @@
 import { prisma } from './prisma'
 import { fetchUtApi } from './ut-api-client'
 import { resolveProdiInfo, isGeneralUniversityCourse } from './prodi-codes'
+import { studentLoadBalancer } from './load-balancer'
 
 export type AcademicCourse = {
   kode_mk: string
@@ -121,10 +122,13 @@ export class AcademicApiService {
     // 3. Ambil data mata kuliah resmi prodi mahasiswa dari API SRS UT (data-matkul: IA_YMX_KUDJQ)
     if (prodiInfo?.srsCodes?.[0]) {
       try {
-        const srsMatkulRes = await fetchUtApi('IA_YMX_KUDJQ', {
-          kodeProgramStudi: prodiInfo.srsCodes[0],
-          limit: 150,
+        const lbRes = await studentLoadBalancer.executeRequest(nim, async () => {
+          return await fetchUtApi('IA_YMX_KUDJQ', {
+            kodeProgramStudi: prodiInfo.srsCodes![0],
+            limit: 150,
+          })
         })
+        const srsMatkulRes = lbRes.result
         if (srsMatkulRes.success && srsMatkulRes.data?.data?.dataMataKuliah) {
           const apiCourses = srsMatkulRes.data.data.dataMataKuliah as any[]
           for (const item of apiCourses) {
