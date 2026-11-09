@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Calendar as CalendarIcon,
@@ -133,7 +133,59 @@ const INITIAL_AGENDAS: AgendaItem[] = [
     location: 'Portal Layanan Akademik UT',
     description: 'Pengumuman Kartu Hasil Studi (KHS) dan nilai semester mahasiswa.',
   },
+  {
+    id: 'ut-8',
+    title: 'Rapat Koordinasi Evaluasi & Penjaminan Mutu Akademik FHISIP',
+    date: '2026-11-09',
+    startTime: '09:00',
+    endTime: '11:30',
+    category: 'prodi',
+    organizer: 'Dekanat FHISIP UT',
+    location: 'Ruang Sidang Dekanat & Zoom Meeting',
+    description: 'Rapat koordinasi pimpinan fakultas bersama seluruh Kaprodi untuk evaluasi perkuliahan semester berjalan.',
+  },
+  {
+    id: 'ut-9',
+    title: 'Batas Verifikasi Pengajuan Pengguguran Mata Kuliah Tahap I',
+    date: '2026-11-09',
+    startTime: '08:00',
+    endTime: '23:59',
+    category: 'ut_academic',
+    organizer: 'Bagian Akademik FHISIP UT',
+    location: 'Sistem Tata Kelola Akademik FHISIP',
+    description: 'Batas akhir peninjauan dan verifikasi pengajuan pengguguran mata kuliah Non-Inti oleh Program Studi.',
+  },
+  {
+    id: 'ut-10',
+    title: 'Batas Pengunggahan Tugas 3 Tutorial Online (Tuton)',
+    date: '2026-11-15',
+    startTime: '08:00',
+    endTime: '23:59',
+    category: 'ut_academic',
+    organizer: 'LPPMP UT',
+    location: 'LMS E-Learning UT',
+    description: 'Batas akhir pengerjaan dan unggah berkas tugas tutorial sesi akhir bagi mahasiswa.',
+  },
+  {
+    id: 'ut-11',
+    title: 'Sosialisasi & Bimbingan Teknis Ujian Akhir Semester (UAS)',
+    date: '2026-11-25',
+    startTime: '13:30',
+    endTime: '16:00',
+    category: 'prodi',
+    organizer: 'Subbag Akademik & Kemahasiswaan FHISIP',
+    location: 'Live YouTube FHISIP UT & Zoom',
+    description: 'Bimtek teknis pelaksanaan UAS Tatap Muka dan Ujian Online bagi mahasiswa FHISIP.',
+  },
 ]
+
+// Helper function to format date as YYYY-MM-DD
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 // Hours from 07:00 to 20:00 for Google Calendar style hourly timeline
 const HOURS = [
@@ -155,13 +207,14 @@ const HOURS = [
 
 export default function JadwalAkademikPage() {
   const [mounted, setMounted] = useState(false)
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 6, 29)) // July 29, 2026
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date())
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(() => formatLocalDate(new Date()))
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month')
-  const [selectedDateStr, setSelectedDateStr] = useState<string>('2026-07-29')
   const [agendas, setAgendas] = useState<AgendaItem[]>(INITIAL_AGENDAS)
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('ALL')
 
@@ -174,7 +227,7 @@ export default function JadwalAkademikPage() {
   // Form State
   const [form, setForm] = useState({
     title: '',
-    date: '2026-07-29',
+    date: formatLocalDate(new Date()),
     startTime: '09:00',
     endTime: '12:00',
     category: 'prodi' as AgendaCategory,
@@ -206,9 +259,23 @@ export default function JadwalAkademikPage() {
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1))
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1))
   const setToday = () => {
-    setCurrentDate(new Date(2026, 6, 29))
-    setSelectedDateStr('2026-07-29')
+    const now = new Date()
+    setCurrentDate(now)
+    setSelectedDateStr(formatLocalDate(now))
   }
+
+  // Today formatted string for UI
+  const todayFormatted = useMemo(() => {
+    const now = new Date()
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+    const dayName = days[now.getDay()]
+    const d = now.getDate()
+    const m = monthNames[now.getMonth()]
+    const y = now.getFullYear()
+    return `${dayName}, ${d} ${m} ${y}`
+  }, [])
+
+  const todayDateStr = useMemo(() => formatLocalDate(new Date()), [])
 
   // Calendar Grid Days Calculation
   const firstDayOfMonth = new Date(year, month, 1).getDay()
@@ -374,9 +441,9 @@ export default function JadwalAkademikPage() {
           {/* Calendar Header Navigation */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pb-4 border-b border-slate-100">
             <div className="flex items-center gap-3">
-              <span className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5">
+              <span className="px-3.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200/80 text-ut-navy text-xs font-bold flex items-center gap-1.5 shadow-2xs">
                 <CalendarCheck className="w-4 h-4 text-ut-navy" />
-                {monthNames[month]} {year}
+                <span>Hari Ini: {todayFormatted}</span>
               </span>
             </div>
 
@@ -388,8 +455,8 @@ export default function JadwalAkademikPage() {
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <span className="text-base font-extrabold text-slate-900 tracking-tight min-w-[140px] text-center">
-                29 Jul 2026
+              <span className="text-base font-extrabold text-slate-900 tracking-tight min-w-[150px] text-center">
+                {monthNames[month]} {year}
               </span>
               <button
                 onClick={nextMonth}
@@ -490,7 +557,7 @@ export default function JadwalAkademikPage() {
           <div className="grid grid-cols-7 gap-px bg-slate-200 rounded-2xl overflow-hidden border border-slate-200">
             {calendarCells.map((cell, idx) => {
               const cellAgendas = filteredAgendas.filter((a) => a.date === cell.dateStr)
-              const isToday = cell.dateStr === '2026-07-29'
+              const isToday = cell.dateStr === todayDateStr
               const isSelected = cell.dateStr === selectedDateStr
 
               return (
