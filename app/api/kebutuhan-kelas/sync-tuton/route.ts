@@ -264,64 +264,80 @@ export async function POST(req: Request) {
           try {
             await page.goto('https://registrasi.ut.ac.id/daftarmtkmhs', { waitUntil: 'networkidle2' }).catch(() => {})
 
-            // Select masa if available
-            await page.select('select[name="masa"]', masa).catch(() => {})
-
-            // Clear and type course code
-            await page.evaluate(() => {
-              const input = document.querySelector('#mtk, input[name="mtk"]') as HTMLInputElement | null
-              if (input) input.value = ''
-            }).catch(() => {})
-
-            await page.type('#mtk, input[name="mtk"]', kode)
-
-            await Promise.all([
-              page.click('input[name="pencarian"], button[type="submit"]'),
-              page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {}),
-            ])
-
-            // Wait 1.5 seconds for initial search results
-            await new Promise((r) => setTimeout(r, 1500))
-
-            // Step: Search DataTables by Prodi Code to filter rows
-            const prefix4 = item.kodeMatkul.trim().substring(0, 4).toUpperCase()
-            const prodiQuery = (body.prodiSearch || PRODI_NUMERIC_MAP[prefix4] || PRODI_NUMERIC_MAP[item.prodiCode.toUpperCase()] || item.prodiCode).trim()
-            
-            if (prodiQuery) {
-              try {
-                const dtSearchInput = await page.$('input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input')
-                if (dtSearchInput) {
-                  await page.evaluate((pq: string) => {
-                    const input = document.querySelector('input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input') as HTMLInputElement | null
-                    if (input) {
-                      input.value = pq
-                      input.dispatchEvent(new Event('input', { bubbles: true }))
-                      input.dispatchEvent(new Event('keyup', { bubbles: true }))
-                      input.dispatchEvent(new Event('change', { bubbles: true }))
-                    }
-                  }, prodiQuery)
-
-                  await dtSearchInput.click()
-                  await page.keyboard.down('Control')
-                  await page.keyboard.press('A')
-                  await page.keyboard.up('Control')
-                  await page.keyboard.press('Backspace')
-                  await dtSearchInput.type(prodiQuery)
-                  await page.keyboard.press('Enter')
-                  await page.evaluate((pq: string) => {
-                    const input = document.querySelector('input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input') as HTMLInputElement | null
-                    if (input) {
-                      input.dispatchEvent(new Event('input', { bubbles: true }))
-                      input.dispatchEvent(new Event('keyup', { bubbles: true }))
-                      input.dispatchEvent(new Event('change', { bubbles: true }))
-                    }
-                  }, prodiQuery)
-                  await new Promise((r) => setTimeout(r, 2000))
+            // 1. Pilih Masa Akademik jika dropdown masa tersedia
+            const selectMasaEl = await page.$('select[name="masa"], select#masa')
+            if (selectMasaEl) {
+              await page.select('select[name="masa"], select#masa', masa).catch(() => {})
+              await page.evaluate(() => {
+                const s = document.querySelector('select[name="masa"], select#masa') as HTMLSelectElement | null
+                if (s) {
+                  s.dispatchEvent(new Event('change', { bubbles: true }))
+                  const form = s.closest('form')
+                  const submitBtn = form?.querySelector('button[type="submit"], input[type="submit"]') as HTMLElement | null
+                  if (submitBtn) submitBtn.click()
                 }
-              } catch {}
+              }).catch(() => {})
+              await new Promise((r) => setTimeout(r, 1500))
             }
 
-            // Parse DataTables entries count:
+            // 2. Opsional: jika ada input form spesifik mata kuliah, isi secara aman tanpa error jika tidak ada
+            const customMtkInput = await page.$('#mtk, input[name="mtk"], input[name="kode_matakuliah"]')
+            if (customMtkInput) {
+              await page.evaluate(() => {
+                const input = document.querySelector('#mtk, input[name="mtk"], input[name="kode_matakuliah"]') as HTMLInputElement | null
+                if (input) input.value = ''
+              }).catch(() => {})
+              await customMtkInput.type(kode).catch(() => {})
+              const submitBtn = await page.$('input[name="pencarian"], button[type="submit"]')
+              if (submitBtn) {
+                await Promise.all([
+                  submitBtn.click(),
+                  page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {}),
+                ])
+              }
+              await new Promise((r) => setTimeout(r, 1500))
+            }
+
+            // 3. Cari Kode Mata Kuliah pada kotak pencarian DataTables tabel peserta
+            const dtSearchInput = await page.$(
+              'input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input, #mytable4_filter input'
+            )
+            if (dtSearchInput) {
+              await page.evaluate((targetCode: string) => {
+                const input = document.querySelector(
+                  'input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input, #mytable4_filter input'
+                ) as HTMLInputElement | null
+                if (input) {
+                  input.value = targetCode
+                  input.dispatchEvent(new Event('input', { bubbles: true }))
+                  input.dispatchEvent(new Event('keyup', { bubbles: true }))
+                  input.dispatchEvent(new Event('change', { bubbles: true }))
+                }
+              }, kode)
+
+              await dtSearchInput.click()
+              await page.keyboard.down('Control')
+              await page.keyboard.press('A')
+              await page.keyboard.up('Control')
+              await page.keyboard.press('Backspace')
+              await dtSearchInput.type(kode)
+              await page.keyboard.press('Enter')
+
+              await page.evaluate((targetCode: string) => {
+                const input = document.querySelector(
+                  'input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input, #mytable4_filter input'
+                ) as HTMLInputElement | null
+                if (input) {
+                  input.dispatchEvent(new Event('input', { bubbles: true }))
+                  input.dispatchEvent(new Event('keyup', { bubbles: true }))
+                  input.dispatchEvent(new Event('change', { bubbles: true }))
+                }
+              }, kode)
+
+              await new Promise((r) => setTimeout(r, 2000))
+            }
+
+            // 4. Parse DataTables entries count:
             // Sesuai instruksi: cari yang "entries" (contoh: 18,336 dari "Showing 1 to 10 of 18,336 entries"),
             // BUKAN "total entries" (25,145 dari "filtered from 25,145 total entries").
             const resData = await page.evaluate(() => {
