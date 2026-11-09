@@ -283,13 +283,11 @@ export async function POST(req: Request) {
             // Wait 1.5 seconds for initial search results
             await new Promise((r) => setTimeout(r, 1500))
 
-            // Step: Search DataTables by Prodi Code or Semester only if explicitly requested
-            const countMode = String(body.countMode || 'total').trim().toLowerCase()
-            const shouldFilterTable = Boolean(body.applyProdiFilter || body.prodiSearch || countMode === 'filtered')
+            // Step: Search DataTables by Prodi Code to filter rows
             const prefix4 = item.kodeMatkul.trim().substring(0, 4).toUpperCase()
             const prodiQuery = (body.prodiSearch || PRODI_NUMERIC_MAP[prefix4] || PRODI_NUMERIC_MAP[item.prodiCode.toUpperCase()] || item.prodiCode).trim()
             
-            if (shouldFilterTable && prodiQuery) {
+            if (prodiQuery) {
               try {
                 const dtSearchInput = await page.$('input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input')
                 if (dtSearchInput) {
@@ -324,48 +322,30 @@ export async function POST(req: Request) {
             }
 
             // Parse DataTables entries count:
-            // Handles both "Showing 1 to 10 of 18,336 entries (filtered from 25,145 total entries)"
-            // and Indonesian "Menampilkan 1 sampai 10 dari 18.336 entri (disaring dari 25.145 total entri)"
-            // as well as plain unfiltered "Showing 1 to 10 of 25,145 entries"
-            const resData = await page.evaluate((mode: string) => {
+            // Sesuai instruksi: cari yang "entries" (contoh: 18,336 dari "Showing 1 to 10 of 18,336 entries"),
+            // BUKAN "total entries" (25,145 dari "filtered from 25,145 total entries").
+            const resData = await page.evaluate(() => {
               const info = document.querySelector('#mytable4_info, .dataTables_info')
               if (info && info.textContent) {
                 const text = info.textContent
 
-                // 1. Total entries (e.g. "... filtered from 25,145 total entries" or "... disaring dari 25.145 total entri")
-                let totalCount: number | null = null
-                const totalMatch = text.match(/(?:filtered\s+from|disaring\s+dari)\s+([\d,.]+)\s+(?:total\s+entries|total\s+entri)/i)
-                if (totalMatch && totalMatch[1]) {
-                  totalCount = parseInt(totalMatch[1].replace(/[,.\s]/g, ''), 10)
+                // 1. Ekstrak nilai sebelum 'entries' / 'entri' (bukan total entries)
+                // Contoh: "of 18,336 entries" -> 18336, "dari 18.336 entri" -> 18336
+                const entriesMatch = text.match(/(?:of|dari)\s+([\d,.]+)\s+(?:entries|entri)/i)
+                if (entriesMatch && entriesMatch[1]) {
+                  const val = parseInt(entriesMatch[1].replace(/[,.\s]/g, ''), 10)
+                  if (!isNaN(val)) return val
                 }
 
-                // 2. Filtered entries (e.g. "of 18,336 entries" or "dari 18.336 entri")
-                let filteredCount: number | null = null
-                const filteredMatch = text.match(/(?:of|dari)\s+([\d,.]+)\s+(?:entries|entri)/i)
-                if (filteredMatch && filteredMatch[1]) {
-                  filteredCount = parseInt(filteredMatch[1].replace(/[,.\s]/g, ''), 10)
+                // 2. Fallback: tangkap angka sebelum 'entries' / 'entri' tanpa kata 'total'
+                const fallbackMatch = text.match(/([\d,.]+)\s+(?:entries|entri)(?!\s*total)/i)
+                if (fallbackMatch && fallbackMatch[1]) {
+                  const val = parseInt(fallbackMatch[1].replace(/[,.\s]/g, ''), 10)
+                  if (!isNaN(val)) return val
                 }
-
-                // If not filtered, "of X entries" is itself the total count
-                if (totalCount === null && filteredCount !== null) {
-                  totalCount = filteredCount
-                }
-
-                // User requested total count (e.g. 25,145)
-                if (mode === 'total') {
-                  return totalCount !== null ? totalCount : filteredCount
-                }
-
-                // User requested filtered count (e.g. 18,336)
-                if (mode === 'filtered') {
-                  return filteredCount !== null ? filteredCount : totalCount
-                }
-
-                // Default: use total count so real student enrollment is not truncated
-                return totalCount !== null ? totalCount : filteredCount
               }
               return null
-            }, countMode)
+            })
 
             if (resData !== null) {
               totalTuton = resData

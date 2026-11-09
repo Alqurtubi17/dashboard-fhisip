@@ -1101,29 +1101,16 @@ export default function KebutuhanKelasPage() {
                   </select>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-700 text-xs block flex items-center justify-between">
-                    <span>Metode Pengambilan Angka Peserta:</span>
-                    <span className="text-[11px] font-normal text-slate-500 font-mono">DataTables Entry</span>
-                  </label>
-                  <select
-                    value={syncCountMode}
-                    onChange={(e) => setSyncCountMode(e.target.value as any)}
-                    disabled={syncingTuton}
-                    className="w-full text-xs font-semibold rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-ut-navy focus:ring-1 focus:ring-ut-navy disabled:opacity-50"
-                  >
-                    <option value="total">
-                      Total Peserta Mata Kuliah — Mengambil total entri (misal: 25.145 dari &apos;filtered from 25,145 total entries&apos;)
-                    </option>
-                    <option value="filtered">
-                      Entri Hasil Saring (Filtered) — Mengambil entri terfilter (misal: 18.336 dari &apos;Showing 1 to 10 of 18,336 entries&apos;)
-                    </option>
-                  </select>
-                  <p className="text-[11px] text-slate-500">
-                    {syncCountMode === 'total'
-                      ? 'Rekomendasi: Mengambil total seluruh peserta registrasi mata kuliah tanpa terpotong filter internal tabel.'
-                      : 'Mengambil jumlah entri spesifik setelah filter query diterapkan pada tabel registrasi.'}
-                  </p>
+                <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 text-blue-900 text-xs flex items-start gap-2">
+                  <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                    i
+                  </div>
+                  <div>
+                    <span className="font-bold text-blue-950">Target Ekstraksi Angka Peserta:</span>
+                    <p className="mt-0.5 text-slate-600 text-[11px] leading-relaxed">
+                      Sistem akan secara spesifik mengekstrak jumlah <strong className="text-slate-900">entries</strong> (contoh: <strong className="text-blue-900 font-mono">18.336</strong> dari <code className="font-mono bg-blue-100/80 px-1 py-0.5 rounded text-blue-900 font-bold">&quot;Showing 1 to 10 of 18,336 entries&quot;</code>), bukan angka <em>total entries</em> (25.145).
+                    </p>
+                  </div>
                 </div>
               </div>
 
