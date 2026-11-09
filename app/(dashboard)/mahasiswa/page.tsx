@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Users,
@@ -22,6 +22,13 @@ import {
   User,
   Copy,
   Check,
+  RotateCcw,
+  Sparkles,
+  Award,
+  Building2,
+  ShieldCheck,
+  ChevronRight,
+  BookOpen,
 } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -86,13 +93,14 @@ export default function MahasiswaPage() {
   const [selectedSemester, setSelectedSemester] = useState<string>('ALL')
   const [minIpk, setMinIpk] = useState<string>('ALL')
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const debouncedSearchQuery = useDebounce(searchQuery, 350)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
   const [filterOpen, setFilterOpen] = useState(false)
   const filterRef = useRef<HTMLDivElement>(null)
 
   // Student Detail Modal state
   const [selectedDetailStudent, setSelectedDetailStudent] = useState<StudentItem | null>(null)
   const [copiedEmail, setCopiedEmail] = useState(false)
+  const [copiedNim, setCopiedNim] = useState<string | null>(null)
 
   // Sync Modal state (Super Admin only)
   const [syncModalOpen, setSyncModalOpen] = useState(false)
@@ -108,6 +116,14 @@ export default function MahasiswaPage() {
     statusText?: string
   } | null>(null)
   const [mounted, setMounted] = useState(false)
+
+  // Toast notification state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3500)
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -130,6 +146,19 @@ export default function MahasiswaPage() {
     }
     checkRole()
   }, [])
+
+  // Keyboard accessibility: Escape closes open popovers / modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedDetailStudent) setSelectedDetailStudent(null)
+        else if (syncModalOpen && !syncing) setSyncModalOpen(false)
+        else if (filterOpen) setFilterOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedDetailStudent, syncModalOpen, syncing, filterOpen])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -183,15 +212,7 @@ export default function MahasiswaPage() {
     }
   }
 
-  // Toast notification state
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
-
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 4000)
-  }
-
-  // Database Sync Modal State (Batch Fetch & Sync to PostgreSQL) table is empty
+  // Database Sync Modal State (Batch Fetch & Sync to PostgreSQL)
   const fetchProxyFallbackBatch = async (pageToFetch: number) => {
     setLoading(true)
     try {
@@ -328,6 +349,22 @@ export default function MahasiswaPage() {
     setCurrentPage(1)
   }
 
+  const handleCopyNim = (nim: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    navigator.clipboard.writeText(nim)
+    setCopiedNim(nim)
+    setTimeout(() => setCopiedNim(null), 2000)
+  }
+
+  const resetAllFilters = () => {
+    setSelectedProdi('ALL')
+    setSelectedStatus('ALL')
+    setSelectedSemester('ALL')
+    setMinIpk('ALL')
+    setSearchQuery('')
+    setCurrentPage(1)
+  }
+
   const hasActiveFilters =
     searchQuery.trim() !== '' ||
     selectedProdi !== 'ALL' ||
@@ -335,16 +372,124 @@ export default function MahasiswaPage() {
     selectedSemester !== 'ALL' ||
     minIpk !== 'ALL'
 
+  // Helper for IPK badge styling (clean rectangular with subtle rounding, no bubble shape)
+  const getIpkBadge = (ipkStr: string) => {
+    const val = parseFloat(ipkStr)
+    if (isNaN(val)) {
+      return (
+        <span className="font-mono text-xs font-semibold text-slate-500">
+          {ipkStr || '-'}
+        </span>
+      )
+    }
+    if (val >= 3.5) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+          <Award className="w-3 h-3 text-emerald-600" />
+          <span>{val.toFixed(2)}</span>
+        </span>
+      )
+    }
+    if (val >= 3.0) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200">
+          {val.toFixed(2)}
+        </span>
+      )
+    }
+    if (val >= 2.75) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200">
+          {val.toFixed(2)}
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-rose-50 text-rose-800 border border-rose-200">
+        {val.toFixed(2)}
+      </span>
+    )
+  }
+
+  // Helper for Status badge styling with WCAG-compliant high contrast (no bubble shape)
+  const getStatusBadge = (statusStr: string) => {
+    const s = (statusStr || '').toLowerCase()
+    if (s === 'aktif' || s === 'da') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+          Aktif
+        </span>
+      )
+    }
+    if (s.includes('alumni') || s.includes('lulus')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-purple-50 text-purple-800 border border-purple-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
+          Alumni
+        </span>
+      )
+    }
+    if (s.includes('cuti') || s.includes('non') || s === 'non-aktif') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+          Non-Aktif
+        </span>
+      )
+    }
+    if (s.includes('belum') || s.includes('reg')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-yellow-50 text-yellow-900 border border-yellow-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-yellow-600"></span>
+          Belum Reg.
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+        {statusStr || 'Lainnya'}
+      </span>
+    )
+  }
+
+  // Active filter count for badge
+  const activeFiltersCount = useMemo(() => {
+    return [
+      selectedProdi !== 'ALL',
+      selectedStatus !== 'ALL',
+      selectedSemester !== 'ALL',
+      minIpk !== 'ALL',
+      searchQuery.trim() !== '',
+    ].filter(Boolean).length
+  }, [selectedProdi, selectedStatus, selectedSemester, minIpk, searchQuery])
+
+  // Selected prodi name for chip
+  const selectedProdiName = useMemo(() => {
+    return PRODI_LIST.find((p) => p.code === selectedProdi)?.name || selectedProdi
+  }, [selectedProdi])
+
+  // Total student baseline for card percentages
+  const grandTotal = categoryStats.total || totalCount || 392064
+
   return (
     <div className="space-y-6">
-      {/* Page Header + Super Admin Sync Button */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* Page Header + Super Admin Sync Action */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/70">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-800">Data Mahasiswa</h1>
-          <p className="text-slate-500 text-sm flex flex-wrap items-center gap-2 mt-0.5">
-            <span>Data mahasiswa terdaftar di lingkungan FHISIP Universitas Terbuka</span>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Portal Data Mahasiswa
+            </h1>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-ut-navy/10 text-ut-navy border border-ut-navy/20">
+              FHISIP UT
+            </span>
+          </div>
+          <p className="text-slate-500 text-xs sm:text-sm flex flex-wrap items-center gap-2 mt-1">
+            <span>Sistem informasi dan monitoring akademik 9 Program Studi FHISIP Universitas Terbuka</span>
             {lastSyncedAt && (
-              <span className="inline-flex items-center gap-1 text-[11px] bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-medium border border-slate-200">
+              <span className="inline-flex items-center gap-1 text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium border border-slate-200">
                 <Database className="w-3 h-3 text-emerald-600" />
                 Terakhir disinkronkan: {new Date(lastSyncedAt).toLocaleString('id-ID')}
               </span>
@@ -359,23 +504,23 @@ export default function MahasiswaPage() {
               setSyncResult(null)
               setSyncModalOpen(true)
             }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-ut-navy text-white hover:bg-ut-navy/90 rounded-xl font-semibold text-xs transition shadow-md hover:shadow-lg"
+            className="self-start sm:self-auto flex items-center gap-2 px-4 py-2 bg-ut-navy text-white hover:bg-ut-navy/90 rounded-xl font-semibold text-xs transition-all duration-150 shadow-sm hover:shadow active:scale-[0.98] border border-white/10"
           >
-            <RefreshCw className="w-4 h-4 text-amber-400" />
-            <span>Sinkronisasi Data</span>
+            <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+            <span>Sinkronisasi Data SRS</span>
           </button>
         )}
       </div>
 
       {/* Database Empty Warning Banner for Super Admin */}
       {isSuperAdmin && totalCount === 0 && !loading && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-4 text-amber-900">
+        <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-4 text-amber-900 shadow-2xs">
           <div className="flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
             <div className="text-xs">
               <p className="font-bold">Basis Data Mahasiswa Belum Terisi</p>
               <p className="text-amber-700">
-                Silakan lakukan sinkronisasi untuk mengunduh dan memperbarui basis data mahasiswa FHISIP UT.
+                Silakan lakukan sinkronisasi untuk mengunduh dan memperbarui basis data mahasiswa FHISIP UT dari SRS API.
               </p>
             </div>
           </div>
@@ -391,276 +536,533 @@ export default function MahasiswaPage() {
         </div>
       )}
 
-      {/* Stats Cards (6 Categories) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+      {/* Stats Cards (6 Categories) with Interactive Filter Trigger */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {[
-          { label: 'Total Mahasiswa', val: (categoryStats.total || totalCount).toLocaleString('id-ID'), icon: Users, color: 'text-blue-600 bg-blue-50' },
-          { label: 'Mahasiswa Non-Aktif', val: (categoryStats.nonAktif || 0).toLocaleString('id-ID'), icon: Clock, color: 'text-amber-600 bg-amber-50' },
-          { label: 'Mahasiswa Alumni', val: (categoryStats.alumni || 0).toLocaleString('id-ID'), icon: GraduationCap, color: 'text-purple-600 bg-purple-50' },
-          { label: 'Belum Reg.', val: (categoryStats.belumReg || 0).toLocaleString('id-ID'), icon: FileSpreadsheet, color: 'text-yellow-600 bg-yellow-50' },
-          { label: 'Mahasiswa Aktif', val: (categoryStats.aktif || 0).toLocaleString('id-ID'), icon: UserCheck, color: 'text-emerald-600 bg-emerald-50' },
-          { label: 'Adm / DO / Lainnya', val: (categoryStats.adm || 0).toLocaleString('id-ID'), icon: AlertCircle, color: 'text-slate-600 bg-slate-100' },
-        ].map((s) => (
-          <div key={s.label} className="card p-4 flex flex-col justify-between hover:shadow-md transition">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-medium text-slate-500 leading-snug">{s.label}</p>
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${s.color}`}>
-                <s.icon className="w-4 h-4" />
+          {
+            label: 'Total Mahasiswa',
+            val: (categoryStats.total || totalCount).toLocaleString('id-ID'),
+            sub: 'Seluruh Sivitas',
+            statusCode: 'ALL',
+            icon: Users,
+            color: 'text-blue-700 bg-blue-50 border-blue-100',
+            borderHover: 'hover:border-blue-400',
+          },
+          {
+            label: 'Mahasiswa Aktif',
+            val: (categoryStats.aktif || 0).toLocaleString('id-ID'),
+            sub: `${((categoryStats.aktif / grandTotal) * 100).toFixed(1)}% dari total`,
+            statusCode: 'aktif',
+            icon: UserCheck,
+            color: 'text-emerald-700 bg-emerald-50 border-emerald-100',
+            borderHover: 'hover:border-emerald-400',
+          },
+          {
+            label: 'Mahasiswa Non-Aktif',
+            val: (categoryStats.nonAktif || 0).toLocaleString('id-ID'),
+            sub: `${((categoryStats.nonAktif / grandTotal) * 100).toFixed(1)}% dari total`,
+            statusCode: 'non-aktif',
+            icon: Clock,
+            color: 'text-amber-700 bg-amber-50 border-amber-100',
+            borderHover: 'hover:border-amber-400',
+          },
+          {
+            label: 'Mahasiswa Alumni',
+            val: (categoryStats.alumni || 0).toLocaleString('id-ID'),
+            sub: `${((categoryStats.alumni / grandTotal) * 100).toFixed(1)}% dari total`,
+            statusCode: 'alumni',
+            icon: GraduationCap,
+            color: 'text-purple-700 bg-purple-50 border-purple-100',
+            borderHover: 'hover:border-purple-400',
+          },
+          {
+            label: 'Belum Registrasi',
+            val: (categoryStats.belumReg || 0).toLocaleString('id-ID'),
+            sub: `${((categoryStats.belumReg / grandTotal) * 100).toFixed(1)}% dari total`,
+            statusCode: 'belum-reg',
+            icon: FileSpreadsheet,
+            color: 'text-yellow-800 bg-yellow-50 border-yellow-200',
+            borderHover: 'hover:border-yellow-400',
+          },
+          {
+            label: 'Adm / DO / Lainnya',
+            val: (categoryStats.adm || 0).toLocaleString('id-ID'),
+            sub: `${((categoryStats.adm / grandTotal) * 100).toFixed(1)}% dari total`,
+            statusCode: 'adm',
+            icon: AlertCircle,
+            color: 'text-slate-700 bg-slate-100 border-slate-200',
+            borderHover: 'hover:border-slate-400',
+          },
+        ].map((s) => {
+          const isSelected = selectedStatus === s.statusCode
+          return (
+            <button
+              key={s.label}
+              onClick={() => {
+                setSelectedStatus(isSelected ? 'ALL' : s.statusCode)
+                setCurrentPage(1)
+              }}
+              className={`p-3.5 rounded-2xl bg-white border text-left transition-all duration-150 flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-ut-navy/20 ${
+                isSelected
+                  ? 'border-ut-navy ring-1 ring-ut-navy/30 bg-slate-50/70 shadow-sm'
+                  : `border-slate-200/80 hover:shadow-sm ${s.borderHover}`
+              }`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
+                  {s.label}
+                </span>
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${s.color}`}>
+                  <s.icon className="w-3.5 h-3.5" />
+                </div>
               </div>
-            </div>
-            <p className="text-xl font-bold text-slate-800 mt-2">
-              {loading ? <span className="inline-block w-16 h-5 bg-slate-200 animate-pulse rounded" /> : s.val}
-            </p>
-          </div>
-        ))}
+              <div className="mt-3">
+                <p className="text-xl font-black text-slate-900 tracking-tight font-mono">
+                  {loading ? (
+                    <span className="inline-block w-16 h-5 bg-slate-200 animate-pulse rounded" />
+                  ) : (
+                    s.val
+                  )}
+                </p>
+                <p className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">{s.sub}</p>
+              </div>
+            </button>
+          )
+        })}
       </div>
 
-      {/* Table Card */}
-      <div className="card relative overflow-visible z-20">
-        {/* Table Header + Controls */}
-        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
-              <FileSpreadsheet className="w-4 h-4 text-ut-navy" />
-              Daftar Mahasiswa FHISIP UT
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {loading
-                ? 'Memuat data mahasiswa...'
-                : hasActiveFilters
-                ? `Menampilkan ${totalCount.toLocaleString('id-ID')} data mahasiswa`
-                : `Menampilkan Halaman ${currentPage.toLocaleString('id-ID')} (${students.length} Data/Hal) dari ${totalCount.toLocaleString('id-ID')}`}
-            </p>
-          </div>
-
-          {/* Search + Filter Dropdown */}
-          <div className="flex items-center gap-2">
-            {/* Search bar */}
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Cari NIM, Nama, Email, HP..."
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-9 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy w-56"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => handleSearchChange('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+      {/* Main Table Container Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs relative overflow-visible z-10">
+        {/* Table Control Header */}
+        <div className="p-4 border-b border-slate-100 flex flex-col gap-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4 text-ut-navy" />
+                <span>Daftar Mahasiswa FHISIP UT</span>
+                <span className="text-slate-400 font-normal text-xs">·</span>
+                <span className="text-xs font-semibold text-slate-500">
+                  {loading
+                    ? 'Memuat data...'
+                    : `${totalCount.toLocaleString('id-ID')} Data Ditemukan`}
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Menampilkan halaman {currentPage.toLocaleString('id-ID')} ({students.length} mahasiswa per halaman)
+              </p>
             </div>
 
-            {/* Filter Popover Button */}
-            <div className="relative z-50" ref={filterRef}>
-              <button
-                onClick={() => setFilterOpen((o) => !o)}
-                className={`flex items-center gap-2 py-2 px-3.5 text-xs font-semibold rounded-xl border transition ${
-                  filterOpen
-                    ? 'bg-ut-navy text-white border-ut-navy'
-                    : 'bg-white text-slate-700 border-slate-200 hover:border-ut-navy/40'
-                }`}
-              >
-                <Filter className="w-3.5 h-3.5" />
-                Filter
-                {[selectedProdi !== 'ALL', selectedStatus !== 'aktif', selectedSemester !== 'ALL', minIpk !== 'ALL'].filter(Boolean).length > 0 && (
-                  <span className="bg-amber-400 text-slate-900 text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                    {[selectedProdi !== 'ALL', selectedStatus !== 'aktif', selectedSemester !== 'ALL', minIpk !== 'ALL'].filter(Boolean).length}
-                  </span>
+            {/* Search + Filter Popover */}
+            <div className="flex items-center gap-2">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Cari NIM, Nama, Email, HP..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="pl-9 pr-8 py-2 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy w-56 sm:w-64 transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => handleSearchChange('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    title="Hapus pencarian"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 )}
-              </button>
+              </div>
 
-              {/* Dropdown Panel */}
-              {filterOpen && (
-                <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-slate-700">Filter Mahasiswa</p>
+              {/* Filter Popover Trigger */}
+              <div className="relative z-50" ref={filterRef}>
+                <button
+                  onClick={() => setFilterOpen((o) => !o)}
+                  className={`flex items-center gap-1.5 py-2 px-3 text-xs font-semibold rounded-xl border transition-all ${
+                    filterOpen
+                      ? 'bg-ut-navy text-white border-ut-navy shadow-sm'
+                      : activeFiltersCount > 0
+                      ? 'bg-ut-navy/5 text-ut-navy border-ut-navy/30 hover:bg-ut-navy/10'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <Filter className="w-3.5 h-3.5" />
+                  <span>Filter</span>
+                  {activeFiltersCount > 0 && (
+                    <span className="bg-amber-400 text-slate-950 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                      {activeFiltersCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Dropdown Panel */}
+                {filterOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-4 space-y-4 animate-in fade-in zoom-in-95">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-1.5">
+                        <Filter className="w-3.5 h-3.5 text-ut-navy" />
+                        <p className="text-xs font-bold text-slate-800">Filter Mahasiswa</p>
+                      </div>
+                      <button
+                        onClick={resetAllFilters}
+                        className="text-[11px] text-ut-blue font-semibold hover:underline flex items-center gap-1"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Reset Semua</span>
+                      </button>
+                    </div>
+
+                    {/* Program Studi */}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Program Studi</p>
+                      <select
+                        value={selectedProdi}
+                        onChange={(e) => {
+                          setSelectedProdi(e.target.value)
+                          setCurrentPage(1)
+                        }}
+                        className="w-full py-2 px-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy font-medium text-slate-800"
+                      >
+                        {PRODI_LIST.map((p) => (
+                          <option key={p.code} value={p.code}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Status */}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status Mahasiswa</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { v: 'ALL', l: 'Semua' },
+                          { v: 'aktif', l: 'Aktif' },
+                          { v: 'non-aktif', l: 'Non-Aktif' },
+                          { v: 'alumni', l: 'Alumni' },
+                          { v: 'belum-reg', l: 'Belum Reg.' },
+                          { v: 'adm', l: 'Adm / DO' },
+                        ].map((s) => (
+                          <button
+                            key={s.v}
+                            onClick={() => {
+                              setSelectedStatus(s.v)
+                              setCurrentPage(1)
+                            }}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                              selectedStatus === s.v
+                                ? 'bg-ut-navy text-white border-ut-navy'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {s.l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Semester */}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Semester</p>
+                      <div className="grid grid-cols-5 gap-1">
+                        {['ALL', ...Array.from({ length: 9 }, (_, i) => String(i + 1))].map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => {
+                              setSelectedSemester(s)
+                              setCurrentPage(1)
+                            }}
+                            className={`h-7 rounded-lg text-xs font-semibold border transition ${
+                              selectedSemester === s
+                                ? 'bg-ut-navy text-white border-ut-navy'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {s === 'ALL' ? 'All' : s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* IPK */}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ambang Batas IPK</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { v: 'ALL', l: 'Semua' },
+                          { v: '3.5', l: '≥ 3.50 (Cumlaude)' },
+                          { v: '3.0', l: '≥ 3.00' },
+                          { v: '2.75', l: '≥ 2.75' },
+                          { v: '2.0', l: '≥ 2.00' },
+                        ].map((ipk) => (
+                          <button
+                            key={ipk.v}
+                            onClick={() => {
+                              setMinIpk(ipk.v)
+                              setCurrentPage(1)
+                            }}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                              minIpk === ipk.v
+                                ? 'bg-ut-navy text-white border-ut-navy'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            {ipk.l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <button
-                      onClick={() => {
-                        setSelectedProdi('ALL')
-                        setSelectedStatus('aktif')
-                        setSelectedSemester('ALL')
-                        setMinIpk('ALL')
-                        setCurrentPage(1)
-                      }}
-                      className="text-[10px] text-ut-blue font-semibold hover:underline"
+                      onClick={() => setFilterOpen(false)}
+                      className="w-full py-2 bg-ut-navy text-white text-xs font-bold rounded-xl hover:bg-ut-navy/90 transition shadow-sm"
                     >
-                      Reset Semua
+                      Terapkan Filter
                     </button>
                   </div>
-
-                  {/* Program Studi */}
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Program Studi</p>
-                    <select
-                      value={selectedProdi}
-                      onChange={(e) => {
-                        setSelectedProdi(e.target.value)
-                        setCurrentPage(1)
-                      }}
-                      className="w-full py-2 px-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy font-medium text-slate-700"
-                    >
-                      {PRODI_LIST.map((p) => (
-                        <option key={p.code} value={p.code}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Status */}
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status Mahasiswa</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { v: 'ALL', l: 'Semua' },
-                        { v: 'non-aktif', l: 'Non-Aktif' },
-                        { v: 'alumni', l: 'Alumni' },
-                        { v: 'belum-reg', l: 'Belum Reg.' },
-                        { v: 'aktif', l: 'Aktif' },
-                        { v: 'adm', l: 'Adm / DO' },
-                      ].map((s) => (
-                        <button
-                          key={s.v}
-                          onClick={() => {
-                            setSelectedStatus(s.v)
-                            setCurrentPage(1)
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${
-                            selectedStatus === s.v
-                              ? 'bg-ut-navy text-white border-ut-navy'
-                              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
-                          }`}
-                        >
-                          {s.l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Semester */}
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Semester</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {['ALL',...Array.from({length:12},(_,i)=>String(i+1))].map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => {
-                            setSelectedSemester(s)
-                            setCurrentPage(1)
-                          }}
-                          className={`w-9 h-8 rounded-lg text-xs font-semibold border transition ${
-                            selectedSemester === s
-                              ? 'bg-ut-navy text-white border-ut-navy'
-                              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
-                          }`}
-                        >
-                          {s === 'ALL' ? 'All' : s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* IPK */}
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Minimum IPK</p>
-                    <div className="flex flex-wrap gap-2">
-                      {[{v:'ALL',l:'Semua'},{v:'3.5',l:'≥ 3.50'},{v:'3.0',l:'≥ 3.00'},{v:'2.75',l:'≥ 2.75'},{v:'2.0',l:'≥ 2.00'}].map((ipk) => (
-                        <button
-                          key={ipk.v}
-                          onClick={() => {
-                            setMinIpk(ipk.v)
-                            setCurrentPage(1)
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${
-                            minIpk === ipk.v
-                              ? 'bg-ut-navy text-white border-ut-navy'
-                              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
-                          }`}
-                        >
-                          {ipk.l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setFilterOpen(false)}
-                    className="w-full py-2 bg-ut-navy text-white text-xs font-bold rounded-xl hover:bg-ut-navy/90 transition"
-                  >
-                    Terapkan Filter
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
+          </div>
+
+          {/* Quick Filter Status Tabs & Active Chips Bar (RX-UX-08) */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+            {/* Quick Status Tabs */}
+            <div className="flex flex-wrap items-center gap-1">
+              {[
+                { v: 'ALL', l: 'Semua Status' },
+                { v: 'aktif', l: 'Mahasiswa Aktif' },
+                { v: 'non-aktif', l: 'Non-Aktif' },
+                { v: 'alumni', l: 'Alumni' },
+                { v: 'belum-reg', l: 'Belum Reg.' },
+                { v: 'adm', l: 'Adm / DO' },
+              ].map((tab) => (
+                <button
+                  key={tab.v}
+                  onClick={() => {
+                    setSelectedStatus(tab.v)
+                    setCurrentPage(1)
+                  }}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    selectedStatus === tab.v
+                      ? 'bg-slate-800 text-white shadow-2xs'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  {tab.l}
+                </button>
+              ))}
+            </div>
+
+            {/* Active Chips & Reset */}
+            {hasActiveFilters && (
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-[11px] font-semibold text-slate-400">Filter Aktif:</span>
+
+                {selectedProdi !== 'ALL' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium text-[11px] border border-slate-200">
+                    Prodi: {selectedProdi}
+                    <button onClick={() => setSelectedProdi('ALL')} className="hover:text-red-600">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {selectedSemester !== 'ALL' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium text-[11px] border border-slate-200">
+                    Sem: {selectedSemester}
+                    <button onClick={() => setSelectedSemester('ALL')} className="hover:text-red-600">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {minIpk !== 'ALL' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium text-[11px] border border-slate-200">
+                    IPK ≥ {minIpk}
+                    <button onClick={() => setMinIpk('ALL')} className="hover:text-red-600">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {searchQuery.trim() !== '' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium text-[11px] border border-slate-200">
+                    Kata Kunci: &ldquo;{searchQuery}&rdquo;
+                    <button onClick={() => setSearchQuery('')} className="hover:text-red-600">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                <button
+                  onClick={resetAllFilters}
+                  className="text-[11px] text-ut-blue hover:text-ut-navy font-bold ml-1 hover:underline flex items-center gap-1"
+                >
+                  <RotateCcw className="w-2.5 h-2.5" />
+                  <span>Reset Filter</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Data Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[760px]">
-            <thead className="bg-slate-50 text-slate-500 text-left border-b border-slate-200">
+          <table className="w-full text-sm min-w-[800px] border-collapse">
+            <thead className="bg-slate-50/80 text-slate-600 text-left border-b border-slate-200">
               <tr>
-                <th className="px-5 py-3 font-semibold">NIM</th>
-                <th className="px-5 py-3 font-semibold">Nama Mahasiswa</th>
-                <th className="px-5 py-3 font-semibold">Kontak (HP / Email)</th>
-                <th className="px-5 py-3 font-semibold">Program Studi</th>
-                <th className="px-5 py-3 font-semibold">Semester</th>
-                <th className="px-5 py-3 font-semibold">IPK</th>
-                <th className="px-5 py-3 font-semibold">Status</th>
-                <th className="px-5 py-3 font-semibold text-right">Aksi</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-wider">NIM</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-wider">Nama Mahasiswa</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-wider">Kontak (HP / Email)</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-wider">Program Studi</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-wider">Semester</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-wider">IPK</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-wider">Status</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-right">Aksi</th>
               </tr>
             </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={8} className="px-5 py-8 text-center text-slate-400">
-                    <Loader2 className="w-5 h-5 animate-spin inline-block mr-2 text-ut-navy" />
-                    Memuat data mahasiswa...
-                  </td>
-                </tr>
-              )}
+            <tbody className="divide-y divide-slate-100">
+              {/* Skeleton Loading State */}
+              {loading &&
+                Array.from({ length: 6 }).map((_, idx) => (
+                  <tr key={`skeleton-${idx}`} className="animate-pulse">
+                    <td className="px-5 py-3.5">
+                      <div className="h-4 w-20 bg-slate-200 rounded"></div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 bg-slate-200 rounded-full"></div>
+                        <div className="h-4 w-36 bg-slate-200 rounded"></div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="space-y-1">
+                        <div className="h-3 w-24 bg-slate-200 rounded"></div>
+                        <div className="h-3 w-32 bg-slate-200 rounded"></div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="h-4 w-28 bg-slate-200 rounded"></div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="h-4 w-12 bg-slate-200 rounded"></div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="h-4 w-12 bg-slate-200 rounded"></div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="h-5 w-16 bg-slate-200 rounded-full"></div>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="h-7 w-16 bg-slate-200 rounded-lg ml-auto"></div>
+                    </td>
+                  </tr>
+                ))}
+
+              {/* Empty Results State */}
               {!loading && students.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-8 text-center text-slate-400">
-                    <p className="font-medium text-slate-600">Tidak ada data mahasiswa yang sesuai.</p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Coba periksa kata kunci / NIM atau sesuaikan filter pencarian Anda.
-                    </p>
+                  <td colSpan={8} className="px-5 py-12 text-center">
+                    <div className="max-w-md mx-auto space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+                        <Search className="w-6 h-6" />
+                      </div>
+                      <p className="font-bold text-slate-700 text-sm">Tidak ada data mahasiswa yang cocok</p>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Coba periksa kata kunci pencarian Anda atau reset filter yang sedang aktif untuk melihat kembali seluruh data.
+                      </p>
+                      {hasActiveFilters && (
+                        <button
+                          onClick={resetAllFilters}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-ut-navy text-white rounded-xl text-xs font-semibold hover:bg-ut-navy/90 transition shadow-sm mt-2"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Reset Semua Filter</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}
+
+              {/* Data Rows */}
               {!loading &&
                 students.map((st, idx) => (
-                  <tr key={`${st.nim}-${idx}`} className="border-t border-slate-100 hover:bg-slate-50/50 transition">
-                    <td className="px-5 py-3 font-mono text-xs font-bold text-ut-navy">{st.nim}</td>
-                    <td className="px-5 py-3 font-medium text-slate-800">{st.name}</td>
-                    <td className="px-5 py-3 text-xs">
-                      <p className="font-mono text-slate-700">{st.phone || '-'}</p>
-                      <p className="text-slate-500 text-[11px] break-all max-w-[220px] leading-tight select-all mt-0.5" title={st.email || '-'}>{st.email || '-'}</p>
-                    </td>
-                    <td className="px-5 py-3 text-slate-600 text-xs">{st.prodi}</td>
-                    <td className="px-5 py-3 text-slate-600">Sem {st.semester}</td>
-                    <td className="px-5 py-3 font-semibold text-slate-700">{st.ipk}</td>
+                  <tr
+                    key={`${st.nim}-${idx}`}
+                    className="hover:bg-slate-50/70 transition-colors duration-100 group cursor-pointer"
+                    onClick={() => setSelectedDetailStudent(st)}
+                  >
+                    {/* NIM */}
                     <td className="px-5 py-3">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          st.status === 'Aktif' || st.status === 'DA' || st.status?.toLowerCase() === 'aktif'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                            : st.status?.toLowerCase().includes('cuti')
-                            ? 'bg-amber-50 text-amber-700 border border-amber-100'
-                            : 'bg-slate-100 text-slate-600 border border-slate-200'
-                        }`}
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs font-bold text-ut-navy">{st.nim}</span>
+                        <button
+                          onClick={(e) => handleCopyNim(st.nim, e)}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-200/80 rounded transition text-slate-400 hover:text-slate-700"
+                          title="Salin NIM"
+                        >
+                          {copiedNim === st.nim ? (
+                            <Check className="w-3 h-3 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+
+                    {/* Nama Mahasiswa with Avatar */}
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[11px] font-bold text-slate-700 shrink-0">
+                          {st.name?.charAt(0)?.toUpperCase() || 'M'}
+                        </div>
+                        <span className="font-semibold text-slate-800 text-xs sm:text-sm group-hover:text-ut-navy transition-colors">
+                          {st.name}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* Kontak */}
+                    <td className="px-5 py-3 text-xs">
+                      <p className="font-mono text-slate-700 font-medium">{st.phone || '-'}</p>
+                      <p
+                        className="text-slate-500 text-[11px] break-all max-w-[210px] leading-tight truncate mt-0.5"
+                        title={st.email || '-'}
                       >
-                        {st.status}
+                        {st.email || '-'}
+                      </p>
+                    </td>
+
+                    {/* Program Studi */}
+                    <td className="px-5 py-3">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/60">
+                        {st.prodi}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-right">
+
+                    {/* Semester */}
+                    <td className="px-5 py-3 text-xs font-semibold text-slate-700">
+                      Sem {st.semester}
+                    </td>
+
+                    {/* IPK */}
+                    <td className="px-5 py-3">
+                      {getIpkBadge(st.ipk)}
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-5 py-3">
+                      {getStatusBadge(st.status)}
+                    </td>
+
+                    {/* Action */}
+                    <td className="px-5 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => setSelectedDetailStudent(st)}
-                        className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-ut-navy hover:text-white text-slate-700 rounded-lg font-medium transition inline-flex items-center gap-1 shrink-0 shadow-2xs"
+                        className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-ut-navy hover:text-white text-slate-700 rounded-lg font-medium transition-all duration-150 inline-flex items-center gap-1 shrink-0 border border-slate-200/60"
                         title="Lihat Detail Lengkap Mahasiswa"
                       >
                         <Eye className="w-3.5 h-3.5" />
@@ -690,12 +1092,23 @@ export default function MahasiswaPage() {
 
       {/* Sync Modal (Super Admin Only) */}
       {mounted && syncModalOpen && isSuperAdmin && createPortal(
-        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto">
-          <div className="card w-full max-w-lg p-6 relative animate-in fade-in zoom-in-95 my-auto">
+        <div
+          className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!syncing) setSyncModalOpen(false)
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl border border-slate-200/80 shadow-2xl w-full max-w-lg p-6 relative animate-in fade-in zoom-in-95 my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => setSyncModalOpen(false)}
               disabled={syncing}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 disabled:opacity-40"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 disabled:opacity-40 p-1 rounded-lg hover:bg-slate-100 transition"
+              aria-label="Tutup dialog"
             >
               <X className="w-5 h-5" />
             </button>
@@ -705,13 +1118,13 @@ export default function MahasiswaPage() {
                 <RefreshCw className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-800">Sinkronisasi Data Mahasiswa</h2>
-                <p className="text-xs text-slate-500">Pembaruan Data Otomatis</p>
+                <h2 className="text-base font-bold text-slate-900">Sinkronisasi Data Mahasiswa</h2>
+                <p className="text-xs text-slate-500">Integrasi SRS API & Basis Data PostgreSQL Lokal</p>
               </div>
             </div>
 
             <p className="text-xs text-slate-600 mb-4 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
-              Sistem akan memperbarui data mahasiswa FHISIP Universitas Terbuka secara langsung dari data resmi universitas.
+              Sistem akan mengunduh dan memperbarui data mahasiswa FHISIP Universitas Terbuka secara bertahap dari API SRS UT ke database PostgreSQL lokal untuk mendukung pencarian kilat.
             </p>
 
             <div className="space-y-3 mb-6">
@@ -721,15 +1134,15 @@ export default function MahasiswaPage() {
                   { label: '25.000 Data', pages: 5 },
                   { label: '50.000 Data', pages: 10 },
                   { label: '100.000 Data', pages: 20 },
-                  { label: 'Seluruh Data Mahasiswa', pages: 'all' },
+                  { label: 'Seluruh Mahasiswa (~400k)', pages: 'all' },
                 ].map((opt) => (
                   <button
                     key={String(opt.pages)}
                     onClick={() => setSyncPages(opt.pages as any)}
                     disabled={syncing}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold border transition ${
+                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold border transition-all ${
                       syncPages === opt.pages
-                        ? 'bg-ut-navy text-white border-ut-navy shadow-sm'
+                        ? 'bg-ut-navy text-white border-ut-navy shadow-xs'
                         : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
                     }`}
                   >
@@ -746,45 +1159,45 @@ export default function MahasiswaPage() {
                   className="w-4 h-4 rounded text-ut-navy focus:ring-ut-navy/20"
                 />
                 <span className="text-xs text-slate-700 font-medium">
-                  Mulai ulang dari awal
+                  Mulai sinkronisasi ulang dari awal (Halaman 1)
                 </span>
               </label>
             </div>
 
             {/* LIVE PROGRESS BAR & STATUS INDICATOR */}
             {syncing && progressState && (
-              <div className="mb-5 space-y-3 bg-slate-50 border border-slate-200/90 p-4 rounded-2xl animate-in fade-in duration-200">
+              <div className="mb-5 space-y-3 bg-slate-50 border border-slate-200 p-4 rounded-2xl animate-in fade-in duration-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="relative flex h-2.5 w-2.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                     </span>
-                    <span className="font-extrabold text-slate-800 text-xs">
+                    <span className="font-bold text-slate-800 text-xs">
                       Memperbarui Data Mahasiswa...
                     </span>
                   </div>
-                  <span className="font-black text-ut-navy text-xs bg-ut-navy/10 px-2.5 py-1 rounded-lg border border-ut-navy/20 font-mono">
+                  <span className="font-bold text-ut-navy text-xs bg-ut-navy/10 px-2 py-0.5 rounded-lg border border-ut-navy/20 font-mono">
                     {progressState.percentage}%
                   </span>
                 </div>
 
                 {/* Progress Bar Track & Animated Fill */}
-                <div className="w-full h-3.5 rounded-full bg-slate-200/80 overflow-hidden p-0.5 border border-slate-300/40">
+                <div className="w-full h-3 rounded-full bg-slate-200 overflow-hidden p-0.5 border border-slate-300/40">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-ut-navy via-ut-blue to-emerald-500 transition-all duration-300 shadow-sm relative overflow-hidden"
+                    className="h-full rounded-full bg-gradient-to-r from-ut-navy via-ut-blue to-emerald-500 transition-all duration-300 relative overflow-hidden"
                     style={{ width: `${Math.max(4, progressState.percentage)}%` }}
                   >
-                    <div className="absolute inset-0 bg-white/25 animate-pulse"></div>
+                    <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
                   </div>
                 </div>
 
                 {/* Status Info Text */}
-                <div className="flex items-center justify-between text-[11px] text-slate-500">
-                  <span className="truncate max-w-[280px] font-medium text-slate-700">
+                <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                  <span className="truncate max-w-[280px] font-medium text-slate-700 font-sans">
                     {progressState.itemLabel || progressState.statusText}
                   </span>
-                  <span className="font-extrabold text-slate-900 shrink-0 font-mono">
+                  <span className="font-bold text-slate-900 shrink-0">
                     {progressState.current} / {progressState.total}
                   </span>
                 </div>
@@ -812,14 +1225,14 @@ export default function MahasiswaPage() {
               <button
                 onClick={() => setSyncModalOpen(false)}
                 disabled={syncing}
-                className="btn-secondary text-xs"
+                className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold hover:bg-slate-50 transition"
               >
                 Batal
               </button>
               <button
                 onClick={handleSyncData}
                 disabled={syncing}
-                className="btn-primary text-xs flex items-center gap-2"
+                className="px-4 py-2 bg-ut-navy text-white rounded-xl text-xs font-bold hover:bg-ut-navy/90 transition flex items-center gap-2 shadow-sm"
               >
                 {syncing ? (
                   <>
@@ -839,34 +1252,99 @@ export default function MahasiswaPage() {
         document.body
       )}
 
-      {/* Student Detail Modal */}
+      {/* Student Detail Modal (Adheres to RYUX Design & UU PDP) */}
       {mounted && selectedDetailStudent && createPortal(
-        <div className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] px-4">
-          <div className="card w-full max-w-md p-6 relative animate-in fade-in zoom-in-95 shadow-2xl my-auto">
+        <div
+          className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] px-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setSelectedDetailStudent(null)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-slate-200/80 shadow-2xl w-full max-w-lg p-6 relative animate-in fade-in zoom-in-95 my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => setSelectedDetailStudent(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+              aria-label="Tutup detail mahasiswa"
             >
               <X className="w-5 h-5" />
             </button>
 
+            {/* Modal Header */}
             <div className="flex items-center gap-3.5 mb-5 border-b border-slate-100 pb-4">
-              <div className="w-12 h-12 rounded-2xl bg-ut-navy text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-md">
-                <User className="w-6 h-6" />
+              <div className="w-12 h-12 rounded-2xl bg-ut-navy text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-sm">
+                {selectedDetailStudent.name?.charAt(0)?.toUpperCase() || 'M'}
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-base font-bold text-slate-800 leading-snug">{selectedDetailStudent.name}</h3>
-                <p className="text-xs font-mono font-bold text-ut-navy mt-0.5">NIM: {selectedDetailStudent.nim}</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900 leading-snug truncate">
+                    {selectedDetailStudent.name}
+                  </h3>
+                  {getStatusBadge(selectedDetailStudent.status)}
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="font-mono text-xs font-bold text-ut-navy bg-ut-navy/5 px-2 py-0.5 rounded border border-ut-navy/15">
+                    NIM: {selectedDetailStudent.nim}
+                  </span>
+                  <button
+                    onClick={() => handleCopyNim(selectedDetailStudent.nim)}
+                    className="text-[11px] text-slate-500 hover:text-ut-navy flex items-center gap-1 font-semibold"
+                  >
+                    {copiedNim === selectedDetailStudent.nim ? (
+                      <span className="text-emerald-600 flex items-center gap-0.5">
+                        <Check className="w-3 h-3" /> Tersalin
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-0.5">
+                        <Copy className="w-3 h-3" /> Salin NIM
+                      </span>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-3 text-xs">
-              {/* Email */}
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                    <Mail className="w-3.5 h-3.5 text-ut-navy" /> Email Mahasiswa
-                  </span>
+            {/* Modal Body - Structured Information Grid */}
+            <div className="space-y-3.5 text-xs">
+              {/* Ringkasan Akademik Section */}
+              <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-ut-navy" />
+                  <span>Informasi Akademik</span>
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Program Studi</span>
+                    <p className="font-bold text-slate-800 text-xs mt-0.5">{selectedDetailStudent.prodi}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">Semester & IPK</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="font-bold text-slate-800">Sem {selectedDetailStudent.semester}</span>
+                      <span className="text-slate-300">·</span>
+                      {getIpkBadge(selectedDetailStudent.ipk)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Kontak Mahasiswa Section */}
+              <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-100 space-y-2.5">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-ut-navy" />
+                  <span>Kontak Resmi Mahasiswa</span>
+                </p>
+
+                {/* Email */}
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/50">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] text-slate-400 block font-medium">Alamat Email</span>
+                    <p className="font-mono text-slate-800 text-xs font-semibold truncate mt-0.5" title={selectedDetailStudent.email || '-'}>
+                      {selectedDetailStudent.email || '-'}
+                    </p>
+                  </div>
                   {selectedDetailStudent.email && selectedDetailStudent.email !== '-' && (
                     <button
                       onClick={() => {
@@ -874,55 +1352,36 @@ export default function MahasiswaPage() {
                         setCopiedEmail(true)
                         setTimeout(() => setCopiedEmail(false), 2000)
                       }}
-                      className="text-[10px] text-ut-blue font-semibold hover:underline flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-slate-200"
+                      className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-200 hover:border-slate-300 rounded-lg text-slate-700 hover:text-ut-navy transition flex items-center gap-1 shrink-0"
                     >
                       {copiedEmail ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                      {copiedEmail ? 'Tersalin' : 'Salin Email'}
+                      <span>{copiedEmail ? 'Tersalin' : 'Salin'}</span>
                     </button>
                   )}
                 </div>
-                <p className="font-mono text-slate-800 text-xs break-all select-all font-bold mt-1">
-                  {selectedDetailStudent.email || '-'}
-                </p>
-              </div>
 
-              {/* Telepon */}
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
-                  <Phone className="w-3.5 h-3.5 text-ut-navy" /> Nomor Telepon / HP
-                </span>
-                <p className="font-mono text-slate-800 text-xs font-bold mt-1">
-                  {selectedDetailStudent.phone || '-'}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {/* Prodi */}
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Program Studi</span>
-                  <p className="font-semibold text-slate-800">{selectedDetailStudent.prodi}</p>
-                </div>
-
-                {/* Semester & IPK */}
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Semester & IPK</span>
-                  <p className="font-semibold text-slate-800">Sem {selectedDetailStudent.semester} · IPK {selectedDetailStudent.ipk}</p>
+                {/* Telepon */}
+                <div className="pt-2 border-t border-slate-200/50">
+                  <span className="text-[10px] text-slate-400 block font-medium">Nomor Telepon / WhatsApp</span>
+                  <p className="font-mono text-slate-800 text-xs font-semibold mt-0.5">
+                    {selectedDetailStudent.phone || '-'}
+                  </p>
                 </div>
               </div>
 
-              {/* Status */}
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status Akademik</span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {selectedDetailStudent.status}
+              {/* Institutional Notice */}
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50/60 text-blue-900 border border-blue-100 text-[11px]">
+                <ShieldCheck className="w-4 h-4 text-blue-700 shrink-0" />
+                <span>
+                  Data resmi FHISIP Universitas Terbuka. Dilindungi standar kepatuhan privasi internal UT.
                 </span>
               </div>
             </div>
 
-            <div className="mt-5">
+            <div className="mt-5 pt-3 border-t border-slate-100 flex justify-end">
               <button
                 onClick={() => setSelectedDetailStudent(null)}
-                className="btn-primary text-xs w-full py-2.5 font-bold"
+                className="px-5 py-2 bg-ut-navy hover:bg-ut-navy/90 text-white text-xs font-bold rounded-xl transition shadow-sm"
               >
                 Tutup Detail
               </button>
@@ -934,19 +1393,27 @@ export default function MahasiswaPage() {
 
       {/* FLOATING TOAST SUCCESS/ERROR ALERT */}
       {mounted && toast && createPortal(
-        <div className="fixed top-5 right-5 z-[9999999] animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className={`px-5 py-3.5 rounded-2xl shadow-2xl border backdrop-blur-md text-xs font-bold flex items-center gap-3 ${
-            toast.type === 'success'
-              ? 'bg-slate-900/95 text-emerald-400 border-emerald-500/30'
-              : 'bg-slate-900/95 text-rose-400 border-rose-500/30'
-          }`}>
+        <div className="fixed top-5 right-5 z-[9999999] animate-in fade-in slide-in-from-top-4 duration-200">
+          <div
+            className={`px-4 py-3 rounded-2xl shadow-xl border backdrop-blur-md text-xs font-semibold flex items-center gap-3 ${
+              toast.type === 'success'
+                ? 'bg-slate-900/95 text-emerald-400 border-emerald-500/30'
+                : 'bg-slate-900/95 text-rose-400 border-rose-500/30'
+            }`}
+          >
             {toast.type === 'success' ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             ) : (
-              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             )}
-            <span className="text-white">{toast.message}</span>
-            <button onClick={() => setToast(null)} className="ml-3 text-slate-400 hover:text-white font-bold text-sm">✕</button>
+            <span className="text-white font-medium">{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="ml-2 text-slate-400 hover:text-white p-0.5 rounded transition"
+              aria-label="Tutup notifikasi"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>,
         document.body

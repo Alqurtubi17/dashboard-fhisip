@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import {
   BookX,
   Plus,
@@ -17,17 +18,15 @@ import {
   X,
   Loader2,
   RefreshCw,
-  ShieldAlert,
   Info,
   CalendarClock,
-  ArrowRight,
   User,
   GraduationCap,
   Building2,
-  FileCheck2,
-  FileX2,
   ShieldCheck,
-  ChevronDown,
+  ChevronRight,
+  ArrowUpRight,
+  LayoutGrid,
 } from 'lucide-react'
 import { Pagination } from '@/components/ui/pagination'
 import {
@@ -36,7 +35,10 @@ import {
   formatWIBDate,
   formatWIBDateShort,
   getProdiNameByCode,
+  cleanStudentName,
+  formatAcademicStatus,
 } from '@/lib/pengguguran-utils'
+import { resolveProdiInfo } from '@/lib/prodi-codes'
 
 type PengajuanItem = {
   id: string
@@ -107,6 +109,8 @@ type MataKuliahItem = {
 }
 
 export default function PengguguranMataKuliahPage() {
+  const [mounted, setMounted] = useState(false)
+
   // Navigation tabs: 'semua' | 'verifikasi-prodi' | 'keputusan-akademik' | 'periode-master'
   const [activeTab, setActiveTab] = useState<'semua' | 'verifikasi-prodi' | 'keputusan-akademik' | 'periode-master'>('semua')
 
@@ -134,7 +138,14 @@ export default function PengguguranMataKuliahPage() {
   const [selectedPeriodeId, setSelectedPeriodeId] = useState('ALL')
   const [loading, setLoading] = useState(true)
 
-  // Modals
+  // Toast Notification state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3500)
+  }
+
+  // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [showActionModal, setShowActionModal] = useState(false)
@@ -144,17 +155,46 @@ export default function PengguguranMataKuliahPage() {
   const [actionNotes, setActionNotes] = useState('')
   const [actionSubmitting, setActionSubmitting] = useState(false)
 
+  // Extend Period Modal
+  const [extendModal, setExtendModal] = useState<{
+    open: boolean
+    period: PeriodeInfo | null
+    newEnd: string
+    reason: string
+    submitting: boolean
+  }>({
+    open: false,
+    period: null,
+    newEnd: '',
+    reason: '',
+    submitting: false,
+  })
+
   // Form Pengajuan states
   const [mataKuliahList, setMataKuliahList] = useState<MataKuliahItem[]>([])
   const [courseSearch, setCourseSearch] = useState('')
-  const [selectedCourse, setSelectedCourse] = useState<MataKuliahItem | null>(null)
+  const [selectedCourses, setSelectedCourses] = useState<MataKuliahItem[]>([])
   const [formNim, setFormNim] = useState('')
   const [formNama, setFormNama] = useState('')
   const [formAlasan, setFormAlasan] = useState('')
   const [formSubmitting, setFormSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  // Periode Edit / Perpanjangan Modal
+  // Student DB Lookup states
+  const [studentLookupLoading, setStudentLookupLoading] = useState(false)
+  const [studentLookupResult, setStudentLookupResult] = useState<{
+    nim: string
+    name: string
+    prodi: string
+    prodiCode: string | null
+    officialProdiCode: string
+    prodiName: string
+    semester: number
+    status: string
+  } | null>(null)
+  const [studentLookupError, setStudentLookupError] = useState<string | null>(null)
+
+  // Periode Edit / Baru Modal
   const [showPeriodeModal, setShowPeriodeModal] = useState(false)
   const [periodeForm, setPeriodeForm] = useState<any>({
     nama: '',
@@ -171,6 +211,44 @@ export default function PengguguranMataKuliahPage() {
     keterangan: '',
     isActive: true,
   })
+
+  // Set document title & mounted
+  useEffect(() => {
+    setMounted(true)
+    document.title = 'Pengguguran Mata Kuliah | FHISIP UT'
+  }, [])
+
+  // Lock body scroll when any modal is open
+  const isAnyModalOpen =
+    showCreateModal || showDetailModal || showActionModal || showPeriodeModal || extendModal.open
+
+  useEffect(() => {
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isAnyModalOpen])
+
+  // ESC key closes modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showCreateModal && !formSubmitting) setShowCreateModal(false)
+        else if (showDetailModal) setShowDetailModal(false)
+        else if (showActionModal && !actionSubmitting) setShowActionModal(false)
+        else if (showPeriodeModal) setShowPeriodeModal(false)
+        else if (extendModal.open && !extendModal.submitting) {
+          setExtendModal({ open: false, period: null, newEnd: '', reason: '', submitting: false })
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showCreateModal, showDetailModal, showActionModal, showPeriodeModal, extendModal, formSubmitting, actionSubmitting])
 
   // Fetch data
   const fetchData = async () => {
@@ -243,6 +321,42 @@ export default function PengguguranMataKuliahPage() {
     fetchCourses()
   }, [])
 
+  // Auto-lookup Mahasiswa saat NIM diketik
+  useEffect(() => {
+    const trimmed = formNim.trim()
+    if (!trimmed || trimmed.length < 5) {
+      setStudentLookupResult(null)
+      setStudentLookupError(null)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setStudentLookupLoading(true)
+        setStudentLookupError(null)
+        const res = await fetch(`/api/akademik/pengguguran/mahasiswa-lookup?nim=${encodeURIComponent(trimmed)}`)
+        const json = await res.json()
+        if (json.success && json.student) {
+          setStudentLookupResult(json.student)
+          setFormNama(cleanStudentName(json.student.name))
+          if (json.courses && json.courses.length > 0) {
+            setMataKuliahList(json.courses)
+          }
+          setStudentLookupError(null)
+        } else {
+          setStudentLookupResult(null)
+          setStudentLookupError(json.message || 'Data mahasiswa tidak ditemukan.')
+        }
+      } catch {
+        setStudentLookupError('Gagal memverifikasi data NIM.')
+      } finally {
+        setStudentLookupLoading(false)
+      }
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [formNim])
+
   // Filtered lists for special tabs
   const prodiPendingItems = useMemo(() => {
     return items.filter((it) => it.status === 'MENUNGGU_VERIFIKASI_PRODI')
@@ -252,18 +366,26 @@ export default function PengguguranMataKuliahPage() {
     return items.filter((it) => it.status === 'DISETUJUI_PRODI')
   }, [items])
 
-  // Handle Form Submit
+  // Toggle multi-selection course
+  const toggleCourseSelection = (course: MataKuliahItem) => {
+    if (course.kategori === 'INTI') return
+    setSelectedCourses((prev) => {
+      const exists = prev.some((c) => c.id === course.id)
+      if (exists) {
+        return prev.filter((c) => c.id !== course.id)
+      } else {
+        return [...prev, course]
+      }
+    })
+  }
+
+  // Handle Form Submit (Multi-select course support)
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError(null)
 
-    if (!selectedCourse) {
-      setFormError('Harap pilih mata kuliah terlebih dahulu.')
-      return
-    }
-
-    if (selectedCourse.kategori === 'INTI') {
-      setFormError('Mata kuliah ini termasuk kategori Mata Kuliah Inti dan tidak dapat diajukan untuk pengguguran.')
+    if (selectedCourses.length === 0) {
+      setFormError('Harap pilih minimal 1 mata kuliah Non-Inti yang ingin digugurkan.')
       return
     }
 
@@ -271,6 +393,8 @@ export default function PengguguranMataKuliahPage() {
       setFormError('NIM, Nama Mahasiswa, dan Alasan pengguguran wajib diisi.')
       return
     }
+
+    const targetProdiCode = studentLookupResult?.officialProdiCode || selectedCourses[0]?.prodiCode || 'FSAP'
 
     try {
       setFormSubmitting(true)
@@ -280,8 +404,8 @@ export default function PengguguranMataKuliahPage() {
         body: JSON.stringify({
           nim: formNim.trim(),
           namaMahasiswa: formNama.trim(),
-          prodiCode: selectedCourse.prodiCode,
-          mataKuliahId: selectedCourse.id,
+          prodiCode: targetProdiCode,
+          mataKuliahIds: selectedCourses.map((c) => c.id),
           alasan: formAlasan.trim(),
           periodeId: activePeriode?.id,
         }),
@@ -295,10 +419,17 @@ export default function PengguguranMataKuliahPage() {
 
       // Success
       setShowCreateModal(false)
-      setSelectedCourse(null)
+      setSelectedCourses([])
+      setStudentLookupResult(null)
       setFormNim('')
       setFormNama('')
       setFormAlasan('')
+      showToast(
+        json.count && json.count > 1
+          ? `${json.count} pengajuan mata kuliah berhasil dibuat dan diteruskan ke Program Studi.`
+          : 'Pengajuan pengguguran berhasil dibuat dan diteruskan ke Program Studi.',
+        'success'
+      )
       fetchData()
     } catch (err: any) {
       setFormError(err?.message || 'Terjadi kesalahan sistem saat mengirim pengajuan.')
@@ -321,7 +452,7 @@ export default function PengguguranMataKuliahPage() {
     if (!selectedItem) return
 
     if (actionDecision === 'TOLAK' && !actionNotes.trim()) {
-      alert('Alasan penolakan wajib dicantumkan.')
+      showToast('Alasan penolakan wajib dicantumkan.', 'error')
       return
     }
 
@@ -343,16 +474,22 @@ export default function PengguguranMataKuliahPage() {
 
       const json = await res.json()
       if (!res.ok) {
-        alert(json.error || 'Gagal menyimpan keputusan.')
+        showToast(json.error || 'Gagal menyimpan keputusan.', 'error')
         return
       }
 
       setShowActionModal(false)
       setSelectedItem(null)
+      showToast(
+        actionType === 'PRODI'
+          ? `Verifikasi Program Studi berhasil disimpan: ${actionDecision === 'SETUJU' ? 'Disetujui' : 'Ditolak'}.`
+          : `Keputusan Akademik berhasil disimpan: ${actionDecision === 'SETUJU' ? 'Disetujui Akhir' : 'Ditolak'}.`,
+        'success'
+      )
       fetchData()
     } catch (err) {
       console.error('Action submit error:', err)
-      alert('Terjadi kesalahan koneksi ke server.')
+      showToast('Terjadi kesalahan koneksi ke server.', 'error')
     } finally {
       setActionSubmitting(false)
     }
@@ -378,14 +515,6 @@ export default function PengguguranMataKuliahPage() {
   // Toggle Course Category (Admin Master MK)
   const handleToggleKategori = async (course: MataKuliahItem) => {
     const nextKategori = course.kategori === 'INTI' ? 'NON_INTI' : 'INTI'
-    if (
-      !confirm(
-        `Ubah kategori mata kuliah "${course.kodeMatkul} - ${course.namaMatkul}" menjadi ${nextKategori}?`
-      )
-    ) {
-      return
-    }
-
     try {
       const res = await fetch('/api/akademik/pengguguran/mata-kuliah', {
         method: 'PATCH',
@@ -394,12 +523,52 @@ export default function PengguguranMataKuliahPage() {
       })
       const json = await res.json()
       if (json.success) {
+        showToast(`Kategori mata kuliah ${course.kodeMatkul} berhasil diubah ke ${nextKategori}.`, 'success')
         fetchCourses()
       } else {
-        alert(json.error || 'Gagal mengubah kategori')
+        showToast(json.error || 'Gagal mengubah kategori', 'error')
       }
     } catch {
-      alert('Gagal menghubungi server')
+      showToast('Gagal menghubungi server.', 'error')
+    }
+  }
+
+  // Handle Extend Period Submit
+  const handleExtendSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!extendModal.period) return
+    if (!extendModal.newEnd) {
+      showToast('Batas tanggal dan jam akhir pengajuan baru wajib diisi.', 'error')
+      return
+    }
+    if (!extendModal.reason.trim()) {
+      showToast('Alasan resmi perpanjangan periode wajib dicantumkan.', 'error')
+      return
+    }
+
+    try {
+      setExtendModal((prev) => ({ ...prev, submitting: true }))
+      const res = await fetch(`/api/akademik/pengguguran/periode/${extendModal.period.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pengajuanEnd: extendModal.newEnd,
+          alasanPerpanjangan: extendModal.reason.trim(),
+        }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        showToast('Periode pengajuan berhasil diperpanjang.', 'success')
+        setExtendModal({ open: false, period: null, newEnd: '', reason: '', submitting: false })
+        fetchPeriodes()
+        fetchData()
+      } else {
+        showToast(json.error || 'Gagal memperpanjang periode', 'error')
+        setExtendModal((prev) => ({ ...prev, submitting: false }))
+      }
+    } catch {
+      showToast('Gagal menghubungi server.', 'error')
+      setExtendModal((prev) => ({ ...prev, submitting: false }))
     }
   }
 
@@ -410,244 +579,316 @@ export default function PengguguranMataKuliahPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-[#002B49] via-[#003B64] to-[#014D82] text-white p-6 rounded-2xl shadow-xl shadow-blue-950/10">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-white/10 text-amber-300">
-              <BookX className="w-6 h-6" />
-            </span>
-            <h1 className="text-2xl font-bold tracking-tight">Pengguguran Mata Kuliah</h1>
-          </div>
-          <p className="text-slate-200 text-sm mt-1.5 max-w-2xl">
-            Sistem tata kelola pengajuan pengguguran mata kuliah Non-Inti dengan validasi kategori, verifikasi Program
-            Studi, dan keputusan akhir bagian Akademik.
-          </p>
-        </div>
+      {/* 1. Page Header (Sesuai format resmi banner FHISIP UT gambar kedua) */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#001D33] via-[#002B49] to-[#005691] text-white p-6 sm:p-8 shadow-xl border border-white/10">
+        <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-amber-400/20 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              setFormError(null)
-              setSelectedCourse(null)
-              setShowCreateModal(true)
-            }}
-            disabled={!activePeriode?.timeline.isPengajuanOpen}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-all ${
-              activePeriode?.timeline.isPengajuanOpen
-                ? 'bg-amber-400 text-slate-950 hover:bg-amber-300 active:scale-95'
-                : 'bg-white/20 text-white/50 cursor-not-allowed'
-            }`}
-          >
-            <Plus className="w-4 h-4" />
-            <span>Ajukan Pengguguran</span>
-          </button>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-3 max-w-3xl">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight flex items-center gap-3">
+              <LayoutGrid className="w-8 h-8 text-amber-400" />
+              Pengguguran Mata Kuliah FHISIP
+            </h1>
+            <p className="text-sm text-slate-200 leading-relaxed">
+              Layanan terpadu verifikasi dan penetapan permohonan pengguguran mata kuliah mahasiswa di lingkungan FHISIP Universitas Terbuka.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={() => {
+                setFormError(null)
+                setSelectedCourses([])
+                setStudentLookupResult(null)
+                setShowCreateModal(true)
+              }}
+              disabled={!activePeriode?.timeline.isPengajuanOpen}
+              className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold shadow-lg transition-all duration-150 ${
+                activePeriode?.timeline.isPengajuanOpen
+                  ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 active:scale-[0.98]'
+                  : 'bg-white/10 text-white/40 cursor-not-allowed border border-white/10'
+              }`}
+            >
+              <Plus className="w-4 h-4 font-bold" />
+              <span>Ajukan Pengguguran</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Timeline & Period Banner */}
-      {activePeriode && (
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      {/* 2. Timeline Status Alert (Bebas flickering: skeleton loader saat loading, hanya render alert jika selesai dimuat) */}
+      {loading ? (
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs space-y-4 animate-pulse">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                <CalendarClock className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl bg-slate-200"></div>
+              <div className="space-y-2">
+                <div className="h-4 w-52 bg-slate-200 rounded"></div>
+                <div className="h-3 w-36 bg-slate-100 rounded"></div>
+              </div>
+            </div>
+            <div className="h-7 w-40 bg-slate-100 rounded-md"></div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 space-y-2">
+                <div className="h-3.5 w-28 bg-slate-200 rounded"></div>
+                <div className="h-2.5 w-32 bg-slate-100 rounded"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : activePeriode ? (
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-ut-navy border border-blue-100 flex items-center justify-center shrink-0">
+                <CalendarClock className="w-5 h-5 text-ut-navy" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-slate-800 text-base">{activePeriode.nama}</h3>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base">{activePeriode.nama}</h3>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                     Periode Aktif
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Tahun Akademik {activePeriode.tahunAkademik} • Semester {activePeriode.semester}
+                  Tahun Akademik {activePeriode.tahunAkademik} &bull; Semester {activePeriode.semester}
                 </p>
               </div>
             </div>
 
-            {/* Sisa Hari / Status Banner */}
-            <div className="flex items-center gap-3 text-xs">
-              <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-slate-500">Tahap Pengajuan:</span>{' '}
-                {activePeriode.timeline.isPengajuanOpen ? (
-                  <span className="font-bold text-emerald-600">
-                    Buka ({activePeriode.timeline.daysRemainingPengajuan} hari lagi)
-                  </span>
-                ) : (
-                  <span className="font-semibold text-slate-400">Tutup</span>
-                )}
-              </div>
-
-              <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-slate-500">Verifikasi Prodi:</span>{' '}
-                {activePeriode.timeline.isVerifikasiProdiOpen ? (
-                  <span className="font-bold text-blue-600">
-                    Aktif ({activePeriode.timeline.daysRemainingVerifikasi} hari lagi)
-                  </span>
-                ) : (
-                  <span className="font-semibold text-slate-400">Selesai/Tutup</span>
-                )}
-              </div>
-
-              <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-slate-500">Keputusan Akademik:</span>{' '}
-                {activePeriode.timeline.isKeputusanAkademikOpen ? (
-                  <span className="font-bold text-purple-600">
-                    Aktif ({activePeriode.timeline.daysRemainingAkademik} hari lagi)
-                  </span>
-                ) : (
-                  <span className="font-semibold text-slate-400">Selesai/Tutup</span>
-                )}
-              </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-500 font-medium">Status Tahapan:</span>
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${
+                  activePeriode.timeline.isPengajuanOpen
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : activePeriode.timeline.isVerifikasiProdiOpen
+                    ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                    : activePeriode.timeline.isKeputusanAkademikOpen
+                    ? 'bg-purple-50 text-purple-800 border border-purple-200'
+                    : 'bg-slate-100 text-slate-700 border border-slate-200'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                {activePeriode.timeline.isPengajuanOpen
+                  ? `Pengajuan Mahasiswa Buka (${activePeriode.timeline.daysRemainingPengajuan} hari lagi)`
+                  : activePeriode.timeline.isVerifikasiProdiOpen
+                  ? `Verifikasi Prodi Aktif (${activePeriode.timeline.daysRemainingVerifikasi} hari lagi)`
+                  : activePeriode.timeline.isKeputusanAkademikOpen
+                  ? `Keputusan Akademik Aktif (${activePeriode.timeline.daysRemainingAkademik} hari lagi)`
+                  : 'Periode Selesai/Ditutup'}
+              </span>
             </div>
           </div>
 
-          {/* Stepper Timeline Visual */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4 text-xs">
+          {/* Stepper Timeline Visual (Tersusun rapi dengan hierarki seimbang, bukan kotak warna-warni acak) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
             <div
-              className={`p-3 rounded-xl border ${
+              className={`p-3 rounded-xl border transition ${
                 activePeriode.timeline.isPengajuanOpen
-                  ? 'bg-emerald-50/70 border-emerald-300 text-emerald-900'
-                  : 'bg-slate-50 border-slate-200 text-slate-600'
+                  ? 'bg-slate-50/90 border-slate-300 text-slate-900 shadow-2xs'
+                  : 'bg-slate-50/50 border-slate-200 text-slate-600'
               }`}
             >
-              <div className="flex items-center justify-between font-bold">
-                <span>1. Pembukaan Pengajuan</span>
-                {activePeriode.timeline.isPengajuanOpen && <span className="text-[10px] text-emerald-700 font-extrabold uppercase tracking-wide">Aktif</span>}
+              <div className="flex items-center justify-between font-bold text-slate-800">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 text-[10px] inline-flex items-center justify-center font-bold">1</span>
+                  Pembukaan Pengajuan
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    activePeriode.timeline.isPengajuanOpen
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {activePeriode.timeline.isPengajuanOpen ? 'Buka' : 'Tutup'}
+                </span>
               </div>
-              <p className="mt-1 text-[11px] text-slate-500">
-                {formatWIBDateShort(activePeriode.pengajuanStart)} – {formatWIBDateShort(activePeriode.pengajuanEnd)}
+              <p className="mt-1.5 text-[11px] text-slate-500">
+                {formatWIBDateShort(activePeriode.pengajuanStart)} &ndash; {formatWIBDateShort(activePeriode.pengajuanEnd)}
               </p>
             </div>
 
             <div
-              className={`p-3 rounded-xl border ${
+              className={`p-3 rounded-xl border transition ${
                 activePeriode.timeline.isVerifikasiProdiOpen
-                  ? 'bg-blue-50/70 border-blue-300 text-blue-900'
-                  : 'bg-slate-50 border-slate-200 text-slate-600'
+                  ? 'bg-slate-50/90 border-slate-300 text-slate-900 shadow-2xs'
+                  : 'bg-slate-50/50 border-slate-200 text-slate-600'
               }`}
             >
-              <div className="flex items-center justify-between font-bold">
-                <span>2. Verifikasi Prodi</span>
-                {activePeriode.timeline.isVerifikasiProdiOpen && <span className="text-[10px] text-blue-700 font-extrabold uppercase tracking-wide">Aktif</span>}
+              <div className="flex items-center justify-between font-bold text-slate-800">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 text-[10px] inline-flex items-center justify-center font-bold">2</span>
+                  Verifikasi Prodi
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    activePeriode.timeline.isVerifikasiProdiOpen
+                      ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {activePeriode.timeline.isVerifikasiProdiOpen ? 'Aktif' : 'Tutup'}
+                </span>
               </div>
-              <p className="mt-1 text-[11px] text-slate-500">
-                {formatWIBDateShort(activePeriode.verifikasiProdiStart)} – {formatWIBDateShort(activePeriode.verifikasiProdiEnd)}
+              <p className="mt-1.5 text-[11px] text-slate-500">
+                {formatWIBDateShort(activePeriode.verifikasiProdiStart)} &ndash; {formatWIBDateShort(activePeriode.verifikasiProdiEnd)}
               </p>
             </div>
 
             <div
-              className={`p-3 rounded-xl border ${
+              className={`p-3 rounded-xl border transition ${
                 activePeriode.timeline.isKeputusanAkademikOpen
-                  ? 'bg-purple-50/70 border-purple-300 text-purple-900'
-                  : 'bg-slate-50 border-slate-200 text-slate-600'
+                  ? 'bg-slate-50/90 border-slate-300 text-slate-900 shadow-2xs'
+                  : 'bg-slate-50/50 border-slate-200 text-slate-600'
               }`}
             >
-              <div className="flex items-center justify-between font-bold">
-                <span>3. Keputusan Akademik</span>
-                {activePeriode.timeline.isKeputusanAkademikOpen && <span className="text-[10px] text-purple-700 font-extrabold uppercase tracking-wide">Aktif</span>}
+              <div className="flex items-center justify-between font-bold text-slate-800">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 text-[10px] inline-flex items-center justify-center font-bold">3</span>
+                  Keputusan Akademik
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    activePeriode.timeline.isKeputusanAkademikOpen
+                      ? 'bg-purple-50 text-purple-800 border border-purple-200'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {activePeriode.timeline.isKeputusanAkademikOpen ? 'Aktif' : 'Tutup'}
+                </span>
               </div>
-              <p className="mt-1 text-[11px] text-slate-500">
-                {formatWIBDateShort(activePeriode.keputusanAkademikStart)} – {formatWIBDateShort(activePeriode.keputusanAkademikEnd)}
+              <p className="mt-1.5 text-[11px] text-slate-500">
+                {formatWIBDateShort(activePeriode.keputusanAkademikStart)} &ndash; {formatWIBDateShort(activePeriode.keputusanAkademikEnd)}
               </p>
             </div>
 
-            <div className="p-3 rounded-xl border bg-slate-50 border-slate-200 text-slate-600">
-              <div className="flex items-center justify-between font-bold">
-                <span>4. Pengumuman Hasil</span>
+            <div className="p-3 rounded-xl border bg-slate-50/50 border-slate-200 text-slate-600">
+              <div className="flex items-center justify-between font-bold text-slate-800">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 text-[10px] inline-flex items-center justify-center font-bold">4</span>
+                  Pengumuman Hasil
+                </span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500">
+                  Jadwal
+                </span>
               </div>
-              <p className="mt-1 text-[11px] text-slate-500">
+              <p className="mt-1.5 text-[11px] text-slate-500">
                 {formatWIBDateShort(activePeriode.pengumumanDate)}
               </p>
             </div>
           </div>
         </div>
+      ) : (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3 shadow-2xs">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-sm">Belum Ada Periode Pengguguran Aktif</p>
+            <p className="mt-0.5 text-slate-600">
+              Saat ini tidak ada periode pengajuan pengguguran yang aktif. Administrator Fakultas dapat mengaktifkan atau menjadwalkan periode baru pada tab &quot;Pengaturan Periode & Master MK&quot;.
+            </p>
+          </div>
+        </div>
       )}
 
-      {/* Summary Cards */}
+      {/* 3. Summary Metric Cards (Aksen border atas elegan & konsisten) */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {[
-          { label: 'Total Pengajuan', val: summary.total, icon: Layers, color: 'text-slate-700 bg-slate-100' },
-          { label: 'Menunggu Prodi', val: summary.menungguProdi, icon: Clock, color: 'text-amber-700 bg-amber-50' },
-          { label: 'Disetujui Prodi', val: summary.disetujuiProdi, icon: CheckCircle2, color: 'text-blue-700 bg-blue-50' },
-          { label: 'Disetujui Akhir', val: summary.disetujuiAkademik, icon: ShieldCheck, color: 'text-emerald-700 bg-emerald-50' },
-          { label: 'Ditolak', val: summary.ditolak, icon: XCircle, color: 'text-rose-700 bg-rose-50' },
+          { label: 'Total Pengajuan', val: summary.total, icon: Layers, borderColor: 'border-t-slate-700', iconBg: 'bg-slate-100 text-slate-700' },
+          { label: 'Menunggu Prodi', val: summary.menungguProdi, icon: Clock, borderColor: 'border-t-amber-500', iconBg: 'bg-amber-50 text-amber-700' },
+          { label: 'Disetujui Prodi', val: summary.disetujuiProdi, icon: CheckCircle2, borderColor: 'border-t-blue-600', iconBg: 'bg-blue-50 text-blue-700' },
+          { label: 'Disetujui Akhir', val: summary.disetujuiAkademik, icon: ShieldCheck, borderColor: 'border-t-emerald-600', iconBg: 'bg-emerald-50 text-emerald-700' },
+          { label: 'Ditolak', val: summary.ditolak, icon: XCircle, borderColor: 'border-t-rose-500', iconBg: 'bg-rose-50 text-rose-700' },
         ].map((s) => (
-          <div key={s.label} className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
-            <div>
-              <p className="text-xs text-slate-500 font-medium">{s.label}</p>
-              <p className="text-2xl font-bold text-slate-800 mt-1">{s.val}</p>
+          <div
+            key={s.label}
+            className={`bg-white p-4 rounded-xl border border-slate-200/90 border-t-2 ${s.borderColor} shadow-2xs hover:shadow-xs transition`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">{s.label}</span>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${s.iconBg}`}>
+                <s.icon className="w-4 h-4" />
+              </div>
             </div>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.color}`}>
-              <s.icon className="w-5 h-5" />
-            </div>
+            <div className="text-2xl font-black text-slate-900 mt-2">{s.val}</div>
           </div>
         ))}
       </div>
 
-      {/* Nav Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
+      {/* 4. Nav Tabs (Desain satu sistem bar yang rapi dan seragam) */}
+      <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100/90 border border-slate-200/80 rounded-xl">
         <button
           onClick={() => setActiveTab('semua')}
-          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
             activeTab === 'semua'
-              ? 'bg-[#002B49] text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
           }`}
         >
-          Semua Pengajuan ({summary.total})
+          <Layers className="w-3.5 h-3.5 text-slate-500" />
+          <span>Semua Pengajuan</span>
+          <span className="px-1.5 py-0.2 rounded-md bg-slate-100 text-[10px] font-bold text-slate-700">
+            {summary.total}
+          </span>
         </button>
 
         {canVerifyProdi && (
           <button
             onClick={() => setActiveTab('verifikasi-prodi')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
               activeTab === 'verifikasi-prodi'
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'text-amber-800 bg-amber-50 hover:bg-amber-100'
+                ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
-            <Clock className="w-4 h-4" />
-            <span>Antrean Verifikasi Prodi ({summary.menungguProdi})</span>
+            <Clock className="w-3.5 h-3.5 text-amber-500" />
+            <span>Antrean Verifikasi Prodi</span>
+            <span className="px-1.5 py-0.2 rounded-md bg-amber-50 text-[10px] font-bold text-amber-800 border border-amber-200">
+              {summary.menungguProdi}
+            </span>
           </button>
         )}
 
         {canDecideAkademik && (
           <button
             onClick={() => setActiveTab('keputusan-akademik')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
               activeTab === 'keputusan-akademik'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-blue-800 bg-blue-50 hover:bg-blue-100'
+                ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
-            <ShieldCheck className="w-4 h-4" />
-            <span>Antrean Akademik ({summary.disetujuiProdi})</span>
+            <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+            <span>Antrean Akademik</span>
+            <span className="px-1.5 py-0.2 rounded-md bg-blue-50 text-[10px] font-bold text-blue-800 border border-blue-200">
+              {summary.disetujuiProdi}
+            </span>
           </button>
         )}
 
         {canManagePeriode && (
           <button
             onClick={() => setActiveTab('periode-master')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
               activeTab === 'periode-master'
-                ? 'bg-purple-600 text-white shadow-sm'
-                : 'text-purple-800 bg-purple-50 hover:bg-purple-100'
+                ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
-            <Calendar className="w-4 h-4" />
+            <Calendar className="w-3.5 h-3.5 text-ut-navy" />
             <span>Pengaturan Periode & Master MK</span>
           </button>
         )}
       </div>
 
-      {/* Main Content Area based on Tab */}
+      {/* 5. Main Tab Content */}
       {activeTab === 'semua' && (
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
           {/* Filters Bar */}
-          <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50/50">
-            <div className="flex flex-1 items-center gap-2.5 w-full md:w-auto">
+          <div className="p-3.5 sm:p-4 border-b border-slate-100 flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50/50">
+            <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full">
               <div className="relative flex-1 max-w-sm">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -658,7 +899,7 @@ export default function PengguguranMataKuliahPage() {
                     setSearchQuery(e.target.value)
                     setPage(1)
                   }}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl text-xs border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-200 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy"
                 />
               </div>
 
@@ -669,7 +910,7 @@ export default function PengguguranMataKuliahPage() {
                   setSelectedProdi(e.target.value)
                   setPage(1)
                 }}
-                className="px-3 py-2 rounded-xl text-xs border border-slate-200 bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-3 py-1.5 text-xs border border-slate-200 bg-white rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy"
               >
                 <option value="ALL">Semua Program Studi</option>
                 {PRODI_OPTIONS.map((p) => (
@@ -686,7 +927,7 @@ export default function PengguguranMataKuliahPage() {
                   setSelectedStatus(e.target.value)
                   setPage(1)
                 }}
-                className="px-3 py-2 rounded-xl text-xs border border-slate-200 bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-3 py-1.5 text-xs border border-slate-200 bg-white rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy"
               >
                 <option value="ALL">Semua Status</option>
                 <option value="MENUNGGU_VERIFIKASI_PRODI">Menunggu Prodi</option>
@@ -699,7 +940,7 @@ export default function PengguguranMataKuliahPage() {
 
             <button
               onClick={() => fetchData()}
-              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition"
+              className="self-end sm:self-auto p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition"
               title="Refresh Data"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -709,23 +950,23 @@ export default function PengguguranMataKuliahPage() {
           {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left min-w-[800px]">
-              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+              <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-3.5">No. Pengajuan</th>
-                  <th className="px-4 py-3.5">Mahasiswa</th>
-                  <th className="px-4 py-3.5">Program Studi</th>
-                  <th className="px-4 py-3.5">Mata Kuliah</th>
-                  <th className="px-4 py-3.5">Kategori</th>
-                  <th className="px-4 py-3.5">Tanggal Diajukan</th>
-                  <th className="px-4 py-3.5">Status</th>
-                  <th className="px-4 py-3.5 text-center">Aksi</th>
+                  <th className="px-4 py-3">No. Pengajuan</th>
+                  <th className="px-4 py-3">Mahasiswa</th>
+                  <th className="px-4 py-3">Program Studi</th>
+                  <th className="px-4 py-3">Mata Kuliah</th>
+                  <th className="px-4 py-3">Kategori</th>
+                  <th className="px-4 py-3">Tanggal Diajukan</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
                     <td colSpan={8} className="text-center py-12 text-slate-400">
-                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
+                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-ut-navy" />
                       <span>Memuat data pengajuan...</span>
                     </td>
                   </tr>
@@ -743,46 +984,46 @@ export default function PengguguranMataKuliahPage() {
                   items.map((item) => {
                     const st = STATUS_MAP[item.status] || {
                       label: item.status,
-                      badgeBg: 'bg-slate-50 text-slate-700',
+                      badgeBg: 'bg-slate-50 text-slate-700 border-slate-200',
                     }
 
                     return (
                       <tr key={item.id} className="hover:bg-slate-50/80 transition">
-                        <td className="px-4 py-3.5 font-mono font-bold text-slate-800">{item.nomorPengajuan}</td>
-                        <td className="px-4 py-3.5">
-                          <div className="font-bold text-slate-800">{item.namaMahasiswa}</div>
-                          <div className="text-[11px] font-mono text-slate-500">NIM: {item.nim}</div>
+                        <td className="px-4 py-3 font-mono font-bold text-slate-900">{item.nomorPengajuan}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-slate-900">{cleanStudentName(item.namaMahasiswa)}</div>
+                          <div className="text-[11px] text-slate-500">NIM: {item.nim}</div>
                         </td>
-                        <td className="px-4 py-3.5">
-                          <span className="font-semibold text-slate-700">{item.prodiCode}</span>
-                          <span className="text-[11px] text-slate-400 block truncate max-w-[140px]">{item.prodiName}</span>
+                        <td className="px-4 py-3">
+                          <span className="font-bold text-slate-800">{item.prodiCode}</span>
+                          <span className="text-[11px] text-slate-500 block truncate max-w-[140px]">{getProdiNameByCode(item.prodiCode)}</span>
                         </td>
-                        <td className="px-4 py-3.5">
-                          <div className="font-bold text-slate-800">{item.kodeMatkul}</div>
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-slate-900">{item.kodeMatkul}</div>
                           <div className="text-[11px] text-slate-500 truncate max-w-[200px]">{item.namaMatkul}</div>
                           <span className="text-[10px] text-slate-400">{item.sks} SKS</span>
                         </td>
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3">
                           {item.kategoriMatkul === 'INTI' ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200 inline-block">
                               Inti
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 inline-block">
                               Non-Inti
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3.5 text-slate-500">{formatWIBDate(item.createdAt)}</td>
-                        <td className="px-4 py-3.5">
-                          <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold border ${st.badgeBg}`}>
+                        <td className="px-4 py-3 text-slate-600">{formatWIBDate(item.createdAt)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-semibold border ${st.badgeBg}`}>
                             {st.label}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-center">
+                        <td className="px-4 py-3 text-center">
                           <button
                             onClick={() => openDetailModal(item)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition"
                           >
                             <Eye className="w-3.5 h-3.5 text-slate-500" />
                             <span>Detail</span>
@@ -809,28 +1050,28 @@ export default function PengguguranMataKuliahPage() {
       {/* Tab: Verifikasi Prodi */}
       {activeTab === 'verifikasi-prodi' && (
         <div className="space-y-4">
-          <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-4 flex items-start gap-3">
+          <div className="bg-amber-50/90 border border-amber-200 text-amber-900 rounded-2xl p-4 flex items-start gap-3 shadow-2xs">
             <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-xs">
               <p className="font-bold text-sm">Halaman Verifikasi Program Studi</p>
-              <p className="mt-0.5">
+              <p className="mt-0.5 text-amber-800">
                 Daftar pengajuan berikut sedang menunggu keputusan verifikasi oleh Kaprodi / Petugas Program Studi yang
                 berwenang. Pengajuan yang disetujui akan diteruskan secara otomatis ke bagian Akademik.
               </p>
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left min-w-[800px]">
-                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3.5">No. Pengajuan</th>
-                    <th className="px-4 py-3.5">Mahasiswa</th>
-                    <th className="px-4 py-3.5">Prodi</th>
-                    <th className="px-4 py-3.5">Mata Kuliah</th>
-                    <th className="px-4 py-3.5">Alasan Pengguguran</th>
-                    <th className="px-4 py-3.5 text-center">Tindakan Prodi</th>
+                    <th className="px-4 py-3">No. Pengajuan</th>
+                    <th className="px-4 py-3">Mahasiswa</th>
+                    <th className="px-4 py-3">Prodi</th>
+                    <th className="px-4 py-3">Mata Kuliah</th>
+                    <th className="px-4 py-3">Alasan Pengguguran</th>
+                    <th className="px-4 py-3 text-center">Tindakan Prodi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -844,23 +1085,23 @@ export default function PengguguranMataKuliahPage() {
                   ) : (
                     prodiPendingItems.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50/80 transition">
-                        <td className="px-4 py-3.5 font-mono font-bold text-slate-800">{item.nomorPengajuan}</td>
-                        <td className="px-4 py-3.5">
-                          <div className="font-bold text-slate-800">{item.namaMahasiswa}</div>
-                          <div className="text-[11px] font-mono text-slate-500">NIM: {item.nim}</div>
+                        <td className="px-4 py-3 font-mono font-bold text-slate-900">{item.nomorPengajuan}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-slate-900">{cleanStudentName(item.namaMahasiswa)}</div>
+                          <div className="text-[11px] text-slate-500">NIM: {item.nim}</div>
                         </td>
-                        <td className="px-4 py-3.5">
-                          <span className="font-semibold text-slate-700">{item.prodiCode}</span>
+                        <td className="px-4 py-3">
+                          <span className="font-bold text-slate-800">{item.prodiCode}</span>
                         </td>
-                        <td className="px-4 py-3.5">
-                          <div className="font-bold text-slate-800">{item.kodeMatkul}</div>
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-slate-900">{item.kodeMatkul}</div>
                           <div className="text-[11px] text-slate-500 truncate max-w-[180px]">{item.namaMatkul}</div>
-                          <span className="text-[10px] text-emerald-600 font-bold">Non-Inti ({item.sks} SKS)</span>
+                          <span className="text-[10px] text-emerald-700 font-bold">Non-Inti ({item.sks} SKS)</span>
                         </td>
-                        <td className="px-4 py-3.5 max-w-xs">
+                        <td className="px-4 py-3 max-w-xs">
                           <p className="text-slate-600 line-clamp-2 italic">&ldquo;{item.alasan}&rdquo;</p>
                         </td>
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-2">
                             <button
                               onClick={() => openDetailModal(item)}
@@ -870,13 +1111,13 @@ export default function PengguguranMataKuliahPage() {
                             </button>
                             <button
                               onClick={() => openActionDialog(item, 'PRODI', 'SETUJU')}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm"
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs"
                             >
                               Setujui
                             </button>
                             <button
                               onClick={() => openActionDialog(item, 'PRODI', 'TOLAK')}
-                              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm"
+                              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs"
                             >
                               Tolak
                             </button>
@@ -895,28 +1136,28 @@ export default function PengguguranMataKuliahPage() {
       {/* Tab: Keputusan Akademik */}
       {activeTab === 'keputusan-akademik' && (
         <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-xl p-4 flex items-start gap-3">
+          <div className="bg-blue-50/90 border border-blue-200 text-blue-900 rounded-2xl p-4 flex items-start gap-3 shadow-2xs">
             <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <div className="text-xs">
               <p className="font-bold text-sm">Halaman Keputusan Akhir Bagian Akademik</p>
-              <p className="mt-0.5">
+              <p className="mt-0.5 text-blue-800">
                 Menampilkan pengajuan yang telah mendapatkan persetujuan dari Program Studi. Bagian Akademik berwenang
                 memberikan keputusan akhir untuk menyelesaikan proses pengguguran secara sah.
               </p>
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left min-w-[800px]">
-                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3.5">No. Pengajuan</th>
-                    <th className="px-4 py-3.5">Mahasiswa</th>
-                    <th className="px-4 py-3.5">Prodi</th>
-                    <th className="px-4 py-3.5">Mata Kuliah</th>
-                    <th className="px-4 py-3.5">Verifikasi Prodi</th>
-                    <th className="px-4 py-3.5 text-center">Keputusan Akademik</th>
+                    <th className="px-4 py-3">No. Pengajuan</th>
+                    <th className="px-4 py-3">Mahasiswa</th>
+                    <th className="px-4 py-3">Prodi</th>
+                    <th className="px-4 py-3">Mata Kuliah</th>
+                    <th className="px-4 py-3">Verifikasi Prodi</th>
+                    <th className="px-4 py-3 text-center">Keputusan Akademik</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -930,20 +1171,20 @@ export default function PengguguranMataKuliahPage() {
                   ) : (
                     akademikPendingItems.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50/80 transition">
-                        <td className="px-4 py-3.5 font-mono font-bold text-slate-800">{item.nomorPengajuan}</td>
-                        <td className="px-4 py-3.5">
-                          <div className="font-bold text-slate-800">{item.namaMahasiswa}</div>
-                          <div className="text-[11px] font-mono text-slate-500">NIM: {item.nim}</div>
+                        <td className="px-4 py-3 font-mono font-bold text-slate-900">{item.nomorPengajuan}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-slate-900">{cleanStudentName(item.namaMahasiswa)}</div>
+                          <div className="text-[11px] text-slate-500">NIM: {item.nim}</div>
                         </td>
-                        <td className="px-4 py-3.5">
-                          <span className="font-semibold text-slate-700">{item.prodiCode}</span>
+                        <td className="px-4 py-3">
+                          <span className="font-bold text-slate-800">{item.prodiCode}</span>
                         </td>
-                        <td className="px-4 py-3.5">
-                          <div className="font-bold text-slate-800">{item.kodeMatkul}</div>
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-slate-900">{item.kodeMatkul}</div>
                           <div className="text-[11px] text-slate-500 truncate max-w-[180px]">{item.namaMatkul}</div>
-                          <span className="text-[10px] text-emerald-600 font-bold">Non-Inti ({item.sks} SKS)</span>
+                          <span className="text-[10px] text-emerald-700 font-bold">Non-Inti ({item.sks} SKS)</span>
                         </td>
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3">
                           <div className="font-bold text-emerald-700 flex items-center gap-1">
                             <Check className="w-3.5 h-3.5" /> Disetujui Prodi
                           </div>
@@ -952,7 +1193,7 @@ export default function PengguguranMataKuliahPage() {
                             <div className="text-[10px] text-slate-600 italic mt-0.5">&ldquo;{item.catatanProdi}&rdquo;</div>
                           )}
                         </td>
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-2">
                             <button
                               onClick={() => openDetailModal(item)}
@@ -962,13 +1203,13 @@ export default function PengguguranMataKuliahPage() {
                             </button>
                             <button
                               onClick={() => openActionDialog(item, 'AKADEMIK', 'SETUJU')}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm"
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs"
                             >
                               Setujui Akhir
                             </button>
                             <button
                               onClick={() => openActionDialog(item, 'AKADEMIK', 'TOLAK')}
-                              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm"
+                              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs"
                             >
                               Tolak
                             </button>
@@ -988,10 +1229,10 @@ export default function PengguguranMataKuliahPage() {
       {activeTab === 'periode-master' && (
         <div className="space-y-6">
           {/* Section 1: Daftar Periode & Timeline */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="font-bold text-slate-800 text-base">Pengaturan Periode & Timeline Pengguguran</h3>
+                <h3 className="font-bold text-slate-900 text-base">Pengaturan Periode & Timeline Pengguguran</h3>
                 <p className="text-xs text-slate-500">
                   Tentukan tanggal dan waktu pembukaan pengajuan, verifikasi Prodi, serta keputusan Akademik (WIB).
                 </p>
@@ -1000,7 +1241,6 @@ export default function PengguguranMataKuliahPage() {
               {currentUserRole === 'superadmin' && (
                 <button
                   onClick={() => {
-                    const now = new Date()
                     setPeriodeForm({
                       nama: `Periode Pengguguran Semester 2026.2`,
                       tahunAkademik: '2026/2027 Genap',
@@ -1017,9 +1257,9 @@ export default function PengguguranMataKuliahPage() {
                     })
                     setShowPeriodeModal(true)
                   }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-sm"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-ut-navy hover:bg-ut-navy/90 text-white text-xs font-semibold shadow-xs transition"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-3.5 h-3.5 text-amber-400" />
                   <span>Tambah Periode Baru</span>
                 </button>
               )}
@@ -1027,7 +1267,7 @@ export default function PengguguranMataKuliahPage() {
 
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left min-w-[700px]">
-                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3">Nama Periode</th>
                     <th className="px-4 py-3">Semester</th>
@@ -1041,7 +1281,7 @@ export default function PengguguranMataKuliahPage() {
                 <tbody className="divide-y divide-slate-100">
                   {allPeriodes.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50/80">
-                      <td className="px-4 py-3 font-bold text-slate-800">{p.nama}</td>
+                      <td className="px-4 py-3 font-bold text-slate-900">{p.nama}</td>
                       <td className="px-4 py-3 text-slate-600">{p.semester}</td>
                       <td className="px-4 py-3 text-slate-600">
                         {formatWIBDateShort(p.pengajuanStart)} s/d {formatWIBDateShort(p.pengajuanEnd)}
@@ -1054,11 +1294,11 @@ export default function PengguguranMataKuliahPage() {
                       </td>
                       <td className="px-4 py-3">
                         {p.isActive ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                             Aktif
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                             Nonaktif
                           </span>
                         )}
@@ -1067,37 +1307,18 @@ export default function PengguguranMataKuliahPage() {
                         {currentUserRole === 'superadmin' && (
                           <button
                             onClick={() => {
-                              const promptAlasan = prompt(
-                                `Perpanjang masa pengajuan periode "${p.nama}"?\nMasukkan alasan perpanjangan resmi (disimpan di audit log):`
-                              )
-                              if (!promptAlasan) return
-
-                              const newDate = prompt(
-                                'Masukkan tanggal & jam akhir pengajuan baru (format: YYYY-MM-DDTHH:mm):',
-                                '2026-12-31T23:59'
-                              )
-                              if (!newDate) return
-
-                              fetch(`/api/akademik/pengguguran/periode/${p.id}`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  pengajuanEnd: newDate,
-                                  alasanPerpanjangan: promptAlasan,
-                                }),
+                              const defaultDate = p.pengajuanEnd
+                                ? new Date(p.pengajuanEnd).toISOString().slice(0, 16)
+                                : '2026-12-31T23:59'
+                              setExtendModal({
+                                open: true,
+                                period: p,
+                                newEnd: defaultDate,
+                                reason: '',
+                                submitting: false,
                               })
-                                .then((r) => r.json())
-                                .then((res) => {
-                                  if (res.success) {
-                                    alert('Periode berhasil diperpanjang!')
-                                    fetchPeriodes()
-                                    fetchData()
-                                  } else {
-                                    alert(res.error || 'Gagal perpanjang periode')
-                                  }
-                                })
                             }}
-                            className="px-2.5 py-1 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 text-xs font-semibold"
+                            className="px-2.5 py-1 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition"
                           >
                             Perpanjang
                           </button>
@@ -1111,10 +1332,10 @@ export default function PengguguranMataKuliahPage() {
           </div>
 
           {/* Section 2: Master Mata Kuliah & Kategori */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="font-bold text-slate-800 text-base">Master Data Kategori Mata Kuliah (Inti / Non-Inti)</h3>
+                <h3 className="font-bold text-slate-900 text-base">Master Data Kategori Mata Kuliah (Inti / Non-Inti)</h3>
                 <p className="text-xs text-slate-500">
                   Data resmi ketetapan kategori mata kuliah. Mata kuliah <strong>Inti</strong> tidak dapat digugurkan.
                 </p>
@@ -1129,14 +1350,14 @@ export default function PengguguranMataKuliahPage() {
                     setCourseSearch(e.target.value)
                     fetchCourses(undefined, e.target.value)
                   }}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs"
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                 />
               </div>
             </div>
 
             <div className="overflow-x-auto max-h-96">
               <table className="w-full text-xs text-left min-w-[650px]">
-                <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0">
+                <thead className="bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 sticky top-0 bg-slate-50">
                   <tr>
                     <th className="px-4 py-2.5">Kode</th>
                     <th className="px-4 py-2.5">Nama Mata Kuliah</th>
@@ -1149,17 +1370,17 @@ export default function PengguguranMataKuliahPage() {
                 <tbody className="divide-y divide-slate-100">
                   {mataKuliahList.slice(0, 30).map((mk) => (
                     <tr key={mk.id} className="hover:bg-slate-50/80">
-                      <td className="px-4 py-2.5 font-mono font-bold text-slate-800">{mk.kodeMatkul}</td>
+                      <td className="px-4 py-2.5 font-mono font-bold text-slate-900">{mk.kodeMatkul}</td>
                       <td className="px-4 py-2.5 font-medium text-slate-800">{mk.namaMatkul}</td>
                       <td className="px-4 py-2.5 text-slate-500">{mk.sks} SKS</td>
-                      <td className="px-4 py-2.5 text-slate-600">{mk.prodiCode}</td>
+                      <td className="px-4 py-2.5 text-slate-700 font-medium">{mk.prodiCode}</td>
                       <td className="px-4 py-2.5">
                         {mk.kategori === 'INTI' ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200 inline-block">
                             Inti (Wajib / Tidak Dapat Digugurkan)
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 inline-block">
                             Non-Inti (Dapat Diajukan)
                           </span>
                         )}
@@ -1168,7 +1389,7 @@ export default function PengguguranMataKuliahPage() {
                         <td className="px-4 py-2.5 text-center">
                           <button
                             onClick={() => handleToggleKategori(mk)}
-                            className="px-2 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-[10px] font-semibold"
+                            className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 text-[11px] font-semibold transition"
                           >
                             Ubah ke {mk.kategori === 'INTI' ? 'Non-Inti' : 'Inti'}
                           </button>
@@ -1186,13 +1407,23 @@ export default function PengguguranMataKuliahPage() {
         </div>
       )}
 
-      {/* MODAL 1: Form Pengajuan Pengguguran Baru */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+      {/* MODAL 1: Form Pengajuan Pengguguran Baru (createPortal document.body) */}
+      {mounted && showCreateModal && createPortal(
+        <div
+          className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm z-[999999] p-4 overflow-y-auto flex items-center justify-center animate-in fade-in duration-150"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!formSubmitting) setShowCreateModal(false)
+          }}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl max-w-xl w-full overflow-hidden border border-slate-200 my-auto animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                <div className="p-2 rounded-xl bg-blue-50 text-ut-navy">
                   <BookX className="w-5 h-5" />
                 </div>
                 <div>
@@ -1202,165 +1433,334 @@ export default function PengguguranMataKuliahPage() {
               </div>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600"
+                className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleCreateSubmit} className="p-5 space-y-4 text-xs overflow-y-auto">
               {formError && (
-                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5">
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <span>{formError}</span>
                 </div>
               )}
 
-              {/* Data Mahasiswa */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Data Mahasiswa (Auto-lookup dari NIM ke Database) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">NIM Mahasiswa *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: 041234567"
-                    value={formNim}
-                    onChange={(e) => setFormNim(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    NIM Mahasiswa *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: 045130359"
+                      value={formNim}
+                      onChange={(e) => setFormNim(e.target.value)}
+                      className="w-full px-3 py-2 pr-9 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20 font-mono font-medium"
+                    />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                      {studentLookupLoading && (
+                        <Loader2 className="w-4 h-4 animate-spin text-ut-navy" />
+                      )}
+                      {!studentLookupLoading && studentLookupResult && (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      )}
+                    </div>
+                  </div>
+                  {studentLookupLoading && (
+                    <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Memeriksa data mahasiswa...
+                    </p>
+                  )}
+                  {!studentLookupLoading && studentLookupResult && (
+                    <p className="text-[11px] text-emerald-700 font-medium mt-1 flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5 text-emerald-600" /> Terdaftar: {studentLookupResult.prodiName}
+                    </p>
+                  )}
+                  {!studentLookupLoading && studentLookupError && (
+                    <p className="text-[11px] text-rose-600 mt-1 font-medium">
+                      {studentLookupError}
+                    </p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Mahasiswa *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>Nama Mahasiswa *</span>
+                    {studentLookupResult && (
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 inline-flex items-center gap-1">
+                        <Check className="w-3 h-3 text-emerald-600" /> Terverifikasi
+                      </span>
+                    )}
+                  </label>
                   <input
                     type="text"
                     required
-                    placeholder="Nama lengkap mahasiswa"
+                    placeholder="Nama Lengkap"
                     value={formNama}
                     onChange={(e) => setFormNama(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className={`w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20 font-medium ${
+                      studentLookupResult ? 'bg-slate-50/80 text-slate-900 font-bold' : ''
+                    }`}
                   />
                 </div>
               </div>
 
-              {/* Pilih Mata Kuliah */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Pilih Mata Kuliah *</label>
-                <select
-                  required
-                  value={selectedCourse?.id || ''}
-                  onChange={(e) => {
-                    const found = mataKuliahList.find((m) => m.id === e.target.value)
-                    setSelectedCourse(found || null)
-                    setFormError(null)
-                  }}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                >
-                  <option value="">-- Pilih Mata Kuliah yang Tersedia --</option>
-                  {mataKuliahList.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      [{m.kodeMatkul}] {m.namaMatkul} ({m.sks} SKS - {m.prodiCode})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Identitas Mahasiswa Terverifikasi Info Card */}
+              {studentLookupResult && (() => {
+                const statusInfo = formatAcademicStatus(studentLookupResult.status)
+                return (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-ut-navy" />
+                        Data Mahasiswa
+                      </span>
+                      <span
+                        title={statusInfo.fullText}
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${statusInfo.badgeBg} ${statusInfo.badgeText} ${statusInfo.badgeBorder}`}
+                      >
+                        Status: {statusInfo.label}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 text-sm">
+                        {cleanStudentName(studentLookupResult.name)}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        NIM: <span className="font-mono font-bold text-slate-700">{studentLookupResult.nim}</span> &bull; {studentLookupResult.prodiName} ({studentLookupResult.officialProdiCode}) &bull; Semester {studentLookupResult.semester}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
 
-              {/* Tampilan Kategori Otomatis & Peringatan Jika INTI */}
-              {selectedCourse && (
-                <div
-                  className={`p-3.5 rounded-xl border text-xs ${
-                    selectedCourse.kategori === 'INTI'
-                      ? 'bg-rose-50 border-rose-300 text-rose-900'
-                      : 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold">Kategori Mata Kuliah:</span>
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                        selectedCourse.kategori === 'INTI'
-                          ? 'bg-rose-600 text-white'
-                          : 'bg-emerald-600 text-white'
-                      }`}
-                    >
-                      {selectedCourse.kategori === 'INTI' ? 'Mata Kuliah Inti' : 'Mata Kuliah Non-Inti'}
+              {/* Pilih Mata Kuliah Non-Inti (Multi-select) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <label className="block font-semibold text-slate-700">
+                      Pilih Mata Kuliah Non-Inti *
+                    </label>
+                    <span className="text-[11px] text-slate-500 block">
+                      Pilih satu atau beberapa mata kuliah yang diajukan untuk digugurkan
                     </span>
                   </div>
+                  {selectedCourses.length > 0 && (
+                    <span className="text-[11px] font-bold text-ut-navy shrink-0">
+                      {selectedCourses.length} mata kuliah dipilih
+                    </span>
+                  )}
+                </div>
 
-                  {selectedCourse.kategori === 'INTI' ? (
-                    <div className="mt-2.5 pt-2.5 border-t border-rose-200 flex items-start gap-2 text-rose-800 font-medium">
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                      <p>Mata kuliah ini termasuk kategori Mata Kuliah Inti dan tidak dapat diajukan untuk pengguguran.</p>
-                    </div>
-                  ) : (
-                    <div className="mt-2.5 pt-2.5 border-t border-emerald-200 flex items-start gap-2 text-emerald-800">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <p>Mata kuliah ini berkategori Non-Inti dan memenuhi syarat diajukan untuk verifikasi Program Studi.</p>
+                <div className="space-y-2 mt-1.5">
+                  <input
+                    type="text"
+                    placeholder="Cari kode atau nama mata kuliah..."
+                    value={courseSearch}
+                    onChange={(e) => setCourseSearch(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
+                  />
+
+                  {/* Course Suggestions Checklist */}
+                  <div className="border border-slate-200 rounded-xl max-h-48 overflow-y-auto divide-y divide-slate-100 bg-white">
+                    {mataKuliahList.filter((c) => {
+                      if (!c.kodeMatkul.toUpperCase().startsWith('FS')) return false
+                      if (!courseSearch.trim()) return true
+                      const q = courseSearch.toLowerCase()
+                      return c.kodeMatkul.toLowerCase().includes(q) || c.namaMatkul.toLowerCase().includes(q)
+                    }).length === 0 ? (
+                      <div className="p-4 text-center text-slate-400">
+                        Tidak ada mata kuliah yang sesuai dengan kriteria pencarian.
+                      </div>
+                    ) : (
+                      mataKuliahList
+                        .filter((c) => {
+                          if (!c.kodeMatkul.toUpperCase().startsWith('FS')) return false
+                          if (!courseSearch.trim()) return true
+                          const q = courseSearch.toLowerCase()
+                          return c.kodeMatkul.toLowerCase().includes(q) || c.namaMatkul.toLowerCase().includes(q)
+                        })
+                        .map((c) => {
+                          const isSelected = selectedCourses.some((sc) => sc.id === c.id)
+                          const isInti = c.kategori === 'INTI'
+
+                          return (
+                            <div
+                              key={c.id}
+                              onClick={() => {
+                                if (!isInti) toggleCourseSelection(c)
+                              }}
+                              className={`p-2.5 flex items-center justify-between gap-3 transition ${
+                                isInti
+                                  ? 'bg-slate-50/70 opacity-60 cursor-not-allowed'
+                                  : isSelected
+                                  ? 'bg-blue-50/90 cursor-pointer font-medium'
+                                  : 'hover:bg-slate-50 cursor-pointer'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  disabled={isInti}
+                                  checked={isSelected}
+                                  onChange={() => toggleCourseSelection(c)}
+                                  className="w-4 h-4 rounded text-ut-navy focus:ring-ut-navy/20 cursor-pointer"
+                                />
+                                <div className="truncate">
+                                  <span className="font-bold text-slate-900 font-mono">{c.kodeMatkul}</span> &ndash;{' '}
+                                  <span className="text-slate-700">{c.namaMatkul}</span>
+                                  <span className="text-[10px] text-slate-400 block">
+                                    {c.sks} SKS &bull; {getProdiNameByCode(c.prodiCode)}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="shrink-0">
+                                {isInti ? (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                                    Mata Kuliah Inti
+                                  </span>
+                                ) : isSelected ? (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    Terpilih
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                    Dapat Diajukan
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })
+                    )}
+                  </div>
+
+                  {/* Selected Courses Summary Box */}
+                  {selectedCourses.length > 0 && (
+                    <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-emerald-950 text-xs">
+                          Mata Kuliah Terpilih ({selectedCourses.length} MK &bull; Total {selectedCourses.reduce((sum, c) => sum + c.sks, 0)} SKS)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCourses([])}
+                          className="text-[10px] text-emerald-700 hover:text-emerald-900 underline font-semibold"
+                        >
+                          Hapus Semua
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedCourses.map((c) => (
+                          <span
+                            key={c.id}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-emerald-300 text-emerald-900 text-[11px] font-medium shadow-2xs"
+                          >
+                            <span className="font-bold">{c.kodeMatkul}</span> &ndash; {c.namaMatkul} ({c.sks} SKS)
+                            <button
+                              type="button"
+                              onClick={() => toggleCourseSelection(c)}
+                              className="text-slate-400 hover:text-rose-600 transition"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
-              )}
+              </div>
 
-              {/* Alasan Pengguguran (Hanya jika bukan Inti) */}
+              {/* Alasan Pengguguran */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Alasan Pengguguran Mata Kuliah *
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Alasan Pengguguran *
                 </label>
                 <textarea
-                  rows={3}
                   required
-                  disabled={selectedCourse?.kategori === 'INTI'}
-                  placeholder="Jelaskan alasan akademik atau administrasi pengajuan pengguguran ini..."
+                  rows={3}
+                  placeholder="Jelaskan alasan akademik atau administrasi mahasiswa mengajukan pengguguran mata kuliah ini..."
                   value={formAlasan}
                   onChange={(e) => setFormAlasan(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                 />
               </div>
 
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              {/* Periode Aktif Info */}
+              {activePeriode && (
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-[11px]">
+                  Diajukan pada periode: <strong>{activePeriode.nama}</strong> ({activePeriode.semester})
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold"
+                  disabled={formSubmitting}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={formSubmitting || !selectedCourse || selectedCourse.kategori === 'INTI'}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold shadow-md transition-all ${
-                    !selectedCourse || selectedCourse.kategori === 'INTI'
+                  disabled={formSubmitting || selectedCourses.length === 0}
+                  className={`px-5 py-2 rounded-xl font-semibold shadow-xs flex items-center gap-1.5 transition ${
+                    formSubmitting || selectedCourses.length === 0
                       ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-ut-navy hover:bg-ut-navy/90 text-white'
                   }`}
                 >
-                  {formSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Ajukan Pengguguran</span>
+                  {formSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Mengirim Permohonan...</span>
+                    </>
+                  ) : (
+                    <span>
+                      Kirim Permohonan Pengguguran {selectedCourses.length > 0 ? `(${selectedCourses.length} Mata Kuliah)` : ''}
+                    </span>
+                  )}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* MODAL 2: Detail & Timeline Visual Progress */}
-      {showDetailModal && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-200">
+      {/* MODAL 2: Detail Pengajuan (createPortal document.body) */}
+      {mounted && showDetailModal && selectedItem && createPortal(
+        <div
+          className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm z-[999999] p-4 overflow-y-auto flex items-center justify-center animate-in fade-in duration-150"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowDetailModal(false)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 my-auto max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 sticky top-0 bg-white z-10">
               <div>
-                <span className="font-mono text-xs text-blue-600 font-bold">{selectedItem.nomorPengajuan}</span>
+                <span className="font-mono text-xs text-ut-blue font-bold">{selectedItem.nomorPengajuan}</span>
                 <h3 className="font-bold text-slate-900 text-base">Detail & Progres Pengajuan Pengguguran</h3>
               </div>
               <button
                 onClick={() => setShowDetailModal(false)}
-                className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600"
+                className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto">
               {/* Visual Progress Stepper */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                 <p className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
@@ -1477,7 +1877,7 @@ export default function PengguguranMataKuliahPage() {
                   <p className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Data Mahasiswa & Prodi</p>
                   <div>
                     <span className="text-slate-400 block">Nama Mahasiswa:</span>
-                    <span className="font-bold text-slate-800">{selectedItem.namaMahasiswa}</span>
+                    <span className="font-bold text-slate-800">{cleanStudentName(selectedItem.namaMahasiswa)}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block">NIM:</span>
@@ -1505,7 +1905,7 @@ export default function PengguguranMataKuliahPage() {
                   </div>
                   <div>
                     <span className="text-slate-400 block">Kategori:</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 inline-block">
                       {selectedItem.kategoriMatkul} (Dapat Diajukan)
                     </span>
                   </div>
@@ -1584,95 +1984,138 @@ export default function PengguguranMataKuliahPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL 3: Dialog Konfirmasi Aksi (Setujui / Tolak oleh Prodi atau Akademik) */}
-      {showActionModal && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+      {mounted && showActionModal && selectedItem && createPortal(
+        <div
+          className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm z-[999999] p-4 overflow-y-auto flex items-center justify-center animate-in fade-in duration-150"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!actionSubmitting) setShowActionModal(false)
+          }}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 my-auto animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div className="flex items-center gap-2">
-                {actionDecision === 'SETUJU' ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                ) : (
-                  <XCircle className="w-5 h-5 text-rose-600" />
-                )}
-                <h3 className="font-bold text-slate-900 text-base">
-                  {actionDecision === 'SETUJU' ? 'Konfirmasi Persetujuan' : 'Konfirmasi Penolakan'}
-                </h3>
-              </div>
+              <h3 className="font-bold text-slate-900 text-base">
+                {actionType === 'PRODI' ? 'Verifikasi Program Studi' : 'Keputusan Bagian Akademik'}
+              </h3>
               <button
                 onClick={() => setShowActionModal(false)}
-                className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600"
+                className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-5 space-y-4 text-xs">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <div className="font-bold text-slate-800">
-                  {selectedItem.kodeMatkul} - {selectedItem.namaMatkul}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <div className="font-bold text-slate-900 text-sm">{cleanStudentName(selectedItem.namaMahasiswa)}</div>
+                <div className="text-slate-600">NIM: {selectedItem.nim} &bull; {selectedItem.prodiCode}</div>
+                <div className="text-slate-700 font-medium">
+                  {selectedItem.kodeMatkul} &ndash; {selectedItem.namaMatkul} ({selectedItem.sks} SKS)
                 </div>
-                <div className="text-slate-500">
-                  Mahasiswa: {selectedItem.namaMahasiswa} ({selectedItem.nim})
-                </div>
-                <div className="text-slate-500">Tingkat: {actionType === 'PRODI' ? 'Verifikasi Prodi' : 'Keputusan Akademik'}</div>
               </div>
 
+              {/* Pilihan Keputusan */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {actionDecision === 'TOLAK' ? 'Alasan Penolakan (Wajib Diisi) *' : 'Catatan Rekomendasi (Opsional)'}
+                <label className="block font-semibold text-slate-700 mb-1.5">Tindakan Keputusan *</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActionDecision('SETUJU')}
+                    className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold transition ${
+                      actionDecision === 'SETUJU'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Check className="w-4 h-4 text-emerald-600" />
+                    <span>Setujui</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActionDecision('TOLAK')}
+                    className={`p-3 rounded-xl border flex items-center justify-center gap-2 font-bold transition ${
+                      actionDecision === 'TOLAK'
+                        ? 'bg-rose-50 border-rose-500 text-rose-800 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <X className="w-4 h-4 text-rose-600" />
+                    <span>Tolak</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Catatan / Alasan */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Catatan / Keterangan {actionDecision === 'TOLAK' ? '(Wajib jika ditolak) *' : '(Opsional)'}
                 </label>
                 <textarea
                   rows={3}
-                  required={actionDecision === 'TOLAK'}
                   placeholder={
                     actionDecision === 'TOLAK'
-                      ? 'Tuliskan alasan penolakan secara jelas dan objektif...'
+                      ? 'Tuliskan alasan resmi penolakan untuk disampaikan ke mahasiswa...'
                       : 'Tambahkan catatan jika diperlukan...'
                   }
                   value={actionNotes}
                   onChange={(e) => setActionNotes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowActionModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold"
+                  disabled={actionSubmitting}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold"
                 >
                   Batal
                 </button>
                 <button
                   type="button"
                   onClick={handleActionSubmit}
-                  disabled={actionSubmitting || (actionDecision === 'TOLAK' && !actionNotes.trim())}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold text-white shadow-md transition-all ${
+                  disabled={actionSubmitting}
+                  className={`px-5 py-2 rounded-xl font-semibold text-white shadow-xs flex items-center gap-1.5 ${
                     actionDecision === 'SETUJU' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
                   }`}
                 >
                   {actionSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>{actionDecision === 'SETUJU' ? 'Ya, Setujui' : 'Ya, Tolak'}</span>
+                  <span>Simpan Keputusan</span>
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* MODAL 4: Tambah / Edit Periode */}
-      {showPeriodeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+      {/* MODAL 4: Tambah / Edit Periode (createPortal document.body) */}
+      {mounted && showPeriodeModal && createPortal(
+        <div
+          className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm z-[999999] p-4 overflow-y-auto flex items-center justify-center animate-in fade-in duration-150"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowPeriodeModal(false)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 my-auto animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <h3 className="font-bold text-slate-900 text-base">Tambah Periode Pengguguran Baru</h3>
               <button
                 onClick={() => setShowPeriodeModal(false)}
-                className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600"
+                className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1689,15 +2132,15 @@ export default function PengguguranMataKuliahPage() {
                   })
                   const json = await res.json()
                   if (json.success) {
-                    alert('Periode baru berhasil dibuat!')
+                    showToast('Periode baru berhasil dibuat dan disimpan.', 'success')
                     setShowPeriodeModal(false)
                     fetchPeriodes()
                     fetchData()
                   } else {
-                    alert(json.error || 'Gagal membuat periode')
+                    showToast(json.error || 'Gagal membuat periode.', 'error')
                   }
                 } catch {
-                  alert('Gagal menghubungi server')
+                  showToast('Gagal menghubungi server.', 'error')
                 }
               }}
               className="p-5 space-y-3 text-xs"
@@ -1709,7 +2152,7 @@ export default function PengguguranMataKuliahPage() {
                   required
                   value={periodeForm.nama}
                   onChange={(e) => setPeriodeForm({ ...periodeForm, nama: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                 />
               </div>
 
@@ -1721,7 +2164,7 @@ export default function PengguguranMataKuliahPage() {
                     required
                     value={periodeForm.tahunAkademik}
                     onChange={(e) => setPeriodeForm({ ...periodeForm, tahunAkademik: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                   />
                 </div>
                 <div>
@@ -1731,7 +2174,7 @@ export default function PengguguranMataKuliahPage() {
                     required
                     value={periodeForm.semester}
                     onChange={(e) => setPeriodeForm({ ...periodeForm, semester: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                   />
                 </div>
               </div>
@@ -1744,7 +2187,7 @@ export default function PengguguranMataKuliahPage() {
                     required
                     value={periodeForm.pengajuanStart}
                     onChange={(e) => setPeriodeForm({ ...periodeForm, pengajuanStart: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                   />
                 </div>
                 <div>
@@ -1754,7 +2197,7 @@ export default function PengguguranMataKuliahPage() {
                     required
                     value={periodeForm.pengajuanEnd}
                     onChange={(e) => setPeriodeForm({ ...periodeForm, pengajuanEnd: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                   />
                 </div>
               </div>
@@ -1767,7 +2210,7 @@ export default function PengguguranMataKuliahPage() {
                     required
                     value={periodeForm.verifikasiProdiStart}
                     onChange={(e) => setPeriodeForm({ ...periodeForm, verifikasiProdiStart: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                   />
                 </div>
                 <div>
@@ -1777,7 +2220,7 @@ export default function PengguguranMataKuliahPage() {
                     required
                     value={periodeForm.verifikasiProdiEnd}
                     onChange={(e) => setPeriodeForm({ ...periodeForm, verifikasiProdiEnd: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                   />
                 </div>
               </div>
@@ -1790,7 +2233,7 @@ export default function PengguguranMataKuliahPage() {
                     required
                     value={periodeForm.keputusanAkademikStart}
                     onChange={(e) => setPeriodeForm({ ...periodeForm, keputusanAkademikStart: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                   />
                 </div>
                 <div>
@@ -1800,7 +2243,7 @@ export default function PengguguranMataKuliahPage() {
                     required
                     value={periodeForm.keputusanAkademikEnd}
                     onChange={(e) => setPeriodeForm({ ...periodeForm, keputusanAkademikEnd: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                   />
                 </div>
               </div>
@@ -1815,16 +2258,133 @@ export default function PengguguranMataKuliahPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-sm"
+                  className="px-5 py-2 rounded-xl bg-ut-navy hover:bg-ut-navy/90 text-white font-semibold shadow-xs transition"
                 >
                   Simpan Periode
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* MODAL 5: Perpanjang Masa Pengajuan Periode (Pengganti prompt browser primitif) */}
+      {mounted && extendModal.open && extendModal.period && createPortal(
+        <div
+          className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm z-[999999] p-4 overflow-y-auto flex items-center justify-center animate-in fade-in duration-150"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!extendModal.submitting) {
+              setExtendModal({ open: false, period: null, newEnd: '', reason: '', submitting: false })
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 my-auto animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-ut-navy" />
+                <h3 className="font-bold text-slate-900 text-base">Perpanjang Masa Pengajuan</h3>
+              </div>
+              <button
+                onClick={() => setExtendModal({ open: false, period: null, newEnd: '', reason: '', submitting: false })}
+                className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleExtendSubmit} className="p-5 space-y-4 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700">
+                <div className="font-bold text-slate-900">{extendModal.period.nama}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  Batas pengajuan saat ini:{' '}
+                  <span className="font-semibold text-slate-800">{formatWIBDate(extendModal.period.pengajuanEnd)}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Batas Tanggal & Jam Pengajuan Baru (WIB) *
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={extendModal.newEnd}
+                  onChange={(e) => setExtendModal((prev) => ({ ...prev, newEnd: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Alasan Resmi Perpanjangan (Tercatat di Audit Log) *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="Contoh: Perpanjangan masa pengajuan atas disposisi pimpinan fakultas..."
+                  value={extendModal.reason}
+                  onChange={(e) => setExtendModal((prev) => ({ ...prev, reason: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setExtendModal({ open: false, period: null, newEnd: '', reason: '', submitting: false })}
+                  disabled={extendModal.submitting}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={extendModal.submitting}
+                  className="px-5 py-2 rounded-xl bg-ut-navy hover:bg-ut-navy/90 text-white font-semibold shadow-xs flex items-center gap-1.5 transition"
+                >
+                  {extendModal.submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Simpan Perpanjangan</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Floating Toast Notification Container (createPortal document.body) */}
+      {mounted && toast && createPortal(
+        <div className="fixed top-5 right-5 z-[9999999] animate-in fade-in slide-in-from-top-4 duration-200">
+          <div
+            className={`px-4 py-3 rounded-2xl shadow-xl border backdrop-blur-md text-xs font-semibold flex items-center gap-3 ${
+              toast.type === 'success'
+                ? 'bg-slate-900/95 text-emerald-400 border-emerald-500/30'
+                : 'bg-slate-900/95 text-rose-400 border-rose-500/30'
+            }`}
+          >
+            {toast.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            )}
+            <span className="text-white font-medium">{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="ml-2 text-slate-400 hover:text-white p-0.5 rounded transition"
+              aria-label="Tutup notifikasi"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )
 }
-

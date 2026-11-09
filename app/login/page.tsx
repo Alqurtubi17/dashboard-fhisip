@@ -5,7 +5,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Loader2, Lock, Mail, ShieldCheck, Building2, Eye, EyeOff } from 'lucide-react'
+import Link from 'next/link'
+import { Loader2, Lock, Mail, ShieldCheck, Eye, EyeOff } from 'lucide-react'
 import { FhisipLogo } from '@/components/ui/fhisip-logo'
 
 const loginSchema = z.object({
@@ -55,14 +56,14 @@ function LoginFormContent() {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div>
         <label className="text-xs font-bold text-slate-700 mb-1.5 block uppercase tracking-wider">
-          Email Sivitas / Administrator
+          Alamat Email
         </label>
         <div className="relative">
           <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
           <input
             {...register('email')}
             type="email"
-            placeholder="admin@kampus.ac.id"
+            placeholder="nama@ecampus.ut.ac.id"
             className="input pl-10 focus:ring-ut-blue"
             autoComplete="email"
           />
@@ -79,7 +80,7 @@ function LoginFormContent() {
           <input
             {...register('password')}
             type={showPassword ? 'text' : 'password'}
-            placeholder="••••••••"
+            placeholder="Masukkan password Anda"
             className="input pl-10 pr-10 focus:ring-ut-blue"
             autoComplete="current-password"
           />
@@ -103,7 +104,7 @@ function LoginFormContent() {
 
       <button type="submit" disabled={loading} className="btn-primary w-full py-3 text-sm font-bold shadow-lg">
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4 text-amber-400" />}
-        {loading ? 'Memverifikasi Kredensial...' : 'Masuk ke Dashboard FHISIP'}
+        {loading ? 'Memproses...' : 'Masuk ke Dashboard'}
       </button>
     </form>
   )
@@ -111,7 +112,7 @@ function LoginFormContent() {
 
 export default function LoginPage() {
   useEffect(() => {
-    document.title = 'Login | FHISIP'
+    document.title = 'Masuk | Dashboard FHISIP UT'
   }, [])
 
   return (
@@ -126,25 +127,19 @@ export default function LoginPage() {
         {/* Top Institutional Header Badge */}
         <div className="text-center space-y-2">
           <div className="flex justify-center my-3">
-            <FhisipLogo className="w-20 h-20 shadow-2xl rounded-2xl" variant="gold" />
+            <FhisipLogo className="w-20 h-20" variant="gold" />
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">FHISIP UT DASHBOARD</h1>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">Dashboard FHISIP UT</h1>
           <p className="text-xs text-slate-300 font-medium max-w-xs mx-auto">
-            Fakultas Hukum, Ilmu Sosial dan Ilmu Politik - Universitas Terbuka
+            Fakultas Hukum, Ilmu Sosial, dan Ilmu Politik &bull; Universitas Terbuka
           </p>
         </div>
 
         {/* Login Card */}
         <div className="card p-6 sm:p-8 backdrop-blur-xl bg-white/95 border border-white/40 shadow-2xl relative overflow-hidden">
-          <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Autentikasi Akses</h2>
-              <p className="text-xs text-slate-500">Masukkan kredensial akun terdaftar</p>
-            </div>
-            <div className="px-2.5 py-1 rounded-lg bg-ut-navy/10 text-ut-navy text-[11px] font-bold border border-ut-navy/15 flex items-center gap-1">
-              <Building2 className="w-3 h-3 text-ut-blue" />
-              <span>PTTJJ</span>
-            </div>
+          <div className="mb-5 pb-3 border-b border-slate-100">
+            <h2 className="text-base font-bold text-slate-900">Masuk ke Akun</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Silakan masukkan email dan password akun terdaftar Anda</p>
           </div>
 
           <Suspense fallback={<div className="text-center py-6 text-slate-400 text-xs font-semibold">Memuat form login...</div>}>
@@ -152,17 +147,20 @@ export default function LoginPage() {
           </Suspense>
 
           <div className="mt-6 pt-4 border-t border-slate-100 text-center">
-            <p className="text-[11px] text-slate-500">
-              Pengguna Superadmin Default: <br />
-              <span className="font-mono font-bold text-ut-navy bg-slate-100 px-1.5 py-0.5 rounded">admin@kampus.ac.id</span> /{' '}
-              <span className="font-mono font-bold text-ut-navy bg-slate-100 px-1.5 py-0.5 rounded">Admin123!</span>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Khusus staf, dosen, dan pengelola fakultas.<br />
+              Mahasiswa silakan masuk melalui{' '}
+              <Link href="/portal-mahasiswa/login" className="text-blue-700 hover:text-blue-900 font-semibold underline underline-offset-2 transition">
+                Portal Mahasiswa
+              </Link>
+              .
             </p>
           </div>
         </div>
 
         {/* Institutional Footer */}
         <div className="text-center text-slate-300 text-xs space-y-1">
-          <p>© {new Date().getFullYear()} Universitas Terbuka. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Universitas Terbuka. Seluruh hak cipta dilindungi.</p>
           <p className="text-[11px] text-slate-400">Pendidikan Tinggi Terbuka dan Jarak Jauh (PTTJJ)</p>
         </div>
       </div>

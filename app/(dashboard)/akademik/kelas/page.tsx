@@ -994,11 +994,11 @@ export default function KebutuhanKelasPage() {
                     <option value="ADPU">S1 Administrasi Publik (FSAP / ADPU)</option>
                     <option value="ADBI">S1 Administrasi Bisnis (FSAB / ADBI)</option>
                     <option value="IKOM">S1 Ilmu Komunikasi (FSIK / IKOM)</option>
-                    <option value="IPEM">S1 Ilmu Pemerintahan (FSIP / IPEM)</option>
+                    <option value="IPEM">S1 Ilmu Pemerintahan (FSPE / IPEM)</option>
                     <option value="SOSI">S1 Sosiologi (FSSO / SOSI)</option>
-                    <option value="PUS">S1 Perpustakaan & Kearsipan (FSKP / PUS)</option>
-                    <option value="PAJAK">S1 / D3 Perpajakan (FSTX / PAJAK)</option>
-                    <option value="SING">S1 Sastra Inggris (FSAG / SING)</option>
+                    <option value="PUS">S1 Ilmu Perpustakaan (FSIP / PUS)</option>
+                    <option value="PAJAK">S1 Perpajakan (FSSP / PAJAK)</option>
+                    <option value="SING">S1 Sastra Inggris (FSSI / SING)</option>
                   </select>
                 </div>
               </div>

@@ -1,8 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import {
   GraduationCap,
   Lock,
@@ -22,6 +21,10 @@ export default function StudentLoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    document.title = 'Login | Portal Mahasiswa FHISIP'
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,15 +66,11 @@ export default function StudentLoginPage() {
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-white/20 p-8 sm:p-10 space-y-6">
           {/* Brand Header */}
           <div className="text-center space-y-3">
-            <div className="inline-flex items-center justify-center p-3.5 rounded-2xl bg-slate-50 border border-slate-100 shadow-md">
-              <FhisipLogo className="w-12 h-12" variant="gold" />
+            <div className="flex justify-center">
+              <FhisipLogo className="w-16 h-16" variant="gold" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-wider">FHISIP</h1>
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
-                Universitas Terbuka
-              </p>
-              <p className="text-xs text-slate-500 mt-2">
+              <p className="text-md font-semibold text-slate-500 mt-2">
                 Portal Pengajuan Pengguguran Mata Kuliah
               </p>
             </div>
@@ -138,26 +137,16 @@ export default function StudentLoginPage() {
           </form>
 
           {/* Guide Card */}
-          <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900 space-y-1">
+          <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900 space-y-1.5">
             <div className="flex items-center gap-1.5 font-bold text-amber-800">
               <Info className="w-3.5 h-3.5" />
               <span>Petunjuk Login Mahasiswa</span>
             </div>
             <p className="text-slate-600 leading-relaxed">
               Gunakan NIM resmi Universitas Terbuka. Untuk login pertama kali, gunakan password inisial{' '}
-              <code className="font-mono font-bold text-amber-900 bg-amber-100 px-1 py-0.5 rounded">Ut@[NIM]</code> atau{' '}
-              <code className="font-mono font-bold text-amber-900 bg-amber-100 px-1 py-0.5 rounded">Mahasiswa123!</code>.
-              Anda dapat mengubah password kapan saja di menu Profil.
+              <code className="font-mono font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded">Ut@[NIM]</code>{' '}
+              (contoh untuk NIM 1234567890: <code className="font-mono font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded">Ut@1234567890</code>). Anda dapat mengubah password kapan saja di menu Profil.
             </p>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 text-center">
-            <Link
-              href="/login"
-              className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 transition inline-flex items-center gap-1"
-            >
-              <span>Login Staf / Administrator Internal →</span>
-            </Link>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -22,6 +23,7 @@ import {
 } from 'lucide-react'
 import { AcademicCourse } from '@/lib/academic-api'
 import { formatWIBDateShort, cleanStudentName } from '@/lib/pengguguran-utils'
+import { Pagination } from '@/components/ui/pagination'
 
 export default function StudentPengguguranPage() {
   const router = useRouter()
@@ -33,6 +35,10 @@ export default function StudentPengguguranPage() {
   const [activePeriode, setActivePeriode] = useState<any>(null)
   const [student, setStudent] = useState<any>(null)
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
   // Modal pengajuan
   const [selectedCourse, setSelectedCourse] = useState<AcademicCourse | null>(null)
   const [showApplyModal, setShowApplyModal] = useState(false)
@@ -41,6 +47,35 @@ export default function StudentPengguguranPage() {
   const [lampiranUrl, setLampiranUrl] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    document.title = 'Pengajuan Pengguguran Mata Kuliah | Portal Mahasiswa FHISIP'
+  }, [])
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (showApplyModal) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [showApplyModal])
+
+  // ESC key closes modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showApplyModal && !submitting) {
+        setShowApplyModal(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showApplyModal, submitting])
 
   const loadCourses = async () => {
     try {
@@ -87,6 +122,12 @@ export default function StudentPengguguranPage() {
       return matchSearch && matchCategory
     })
   }, [courses, searchQuery, categoryFilter])
+
+  // Paginated courses for the current view
+  const paginatedCourses = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredCourses.slice(start, start + pageSize)
+  }, [filteredCourses, currentPage, pageSize])
 
   // Open apply dialog
   const handleOpenApply = (course: AcademicCourse) => {
@@ -163,6 +204,7 @@ export default function StudentPengguguranPage() {
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
                 Program Studi: <strong className="text-slate-800">{student?.prodi}</strong>
+                {student?.prodiCode && <span className="ml-1 text-slate-500 font-semibold">({student.prodiCode})</span>}
               </p>
             </div>
           </div>
@@ -197,7 +239,10 @@ export default function StudentPengguguranPage() {
             type="text"
             placeholder="Cari kode atau nama mata kuliah..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+              setCurrentPage(1)
+            }}
             className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -205,7 +250,10 @@ export default function StudentPengguguranPage() {
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <select
             value={categoryFilter}
-            onChange={(e: any) => setCategoryFilter(e.target.value)}
+            onChange={(e: any) => {
+              setCategoryFilter(e.target.value)
+              setCurrentPage(1)
+            }}
             className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="ALL">Semua Kategori ({courses.length})</option>
@@ -241,7 +289,7 @@ export default function StudentPengguguranPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredCourses.map((c) => {
+                {paginatedCourses.map((c) => {
                   const isInti = c.kategori_mk === 'INTI'
 
                   return (
@@ -256,11 +304,11 @@ export default function StudentPengguguranPage() {
                       <td className="px-4 py-3.5 font-semibold text-slate-600">{c.sks} SKS</td>
                       <td className="px-4 py-3.5">
                         {isInti ? (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
                             Inti
                           </span>
                         ) : (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Non-Inti
                           </span>
                         )}
@@ -320,12 +368,37 @@ export default function StudentPengguguranPage() {
             </table>
           </div>
         )}
+
+        {/* Pagination */}
+        {!loading && filteredCourses.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredCourses.length}
+            pageSize={pageSize}
+            onPageChange={(p) => setCurrentPage(p)}
+            onPageSizeChange={(s) => {
+              setPageSize(s)
+              setCurrentPage(1)
+            }}
+            pageSizeOptions={[10, 20, 50]}
+          />
+        )}
       </div>
 
       {/* MODAL PENGAJUAN */}
-      {showApplyModal && selectedCourse && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+      {mounted && showApplyModal && selectedCourse && createPortal(
+        <div
+          className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!submitting) setShowApplyModal(false)
+          }}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 my-auto animate-in fade-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-2xl bg-blue-50 text-blue-600">
@@ -338,7 +411,7 @@ export default function StudentPengguguranPage() {
               </div>
               <button
                 onClick={() => setShowApplyModal(false)}
-                className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600"
+                className="p-1.5 rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -358,8 +431,11 @@ export default function StudentPengguguranPage() {
                   Identitas Pengaju
                 </span>
                 <div className="font-bold text-slate-800 text-sm">{cleanStudentName(student?.name)}</div>
-                <div className="text-slate-600 font-mono">NIM: {student?.nim}</div>
-                <div className="text-slate-600">{student?.prodi}</div>
+                <div className="text-slate-600">NIM: {student?.nim}</div>
+                <div className="text-slate-600">
+                  {student?.prodi}
+                  {student?.prodiCode && <span className="ml-1 text-slate-500 font-medium">({student.prodiCode})</span>}
+                </div>
               </div>
 
               {/* Data Mata Kuliah yang Dipilih */}
@@ -368,7 +444,7 @@ export default function StudentPengguguranPage() {
                   <span className="font-bold text-[10px] text-blue-700 uppercase tracking-wider">
                     Mata Kuliah Yang Diajukan
                   </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-600 text-white">
                     Non-Inti (Dapat Diajukan)
                   </span>
                 </div>
@@ -417,7 +493,7 @@ export default function StudentPengguguranPage() {
                 <button
                   type="button"
                   onClick={() => setShowApplyModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold"
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold transition"
                 >
                   Batal
                 </button>
@@ -432,7 +508,8 @@ export default function StudentPengguguranPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

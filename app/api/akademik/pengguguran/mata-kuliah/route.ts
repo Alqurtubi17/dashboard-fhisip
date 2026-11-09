@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { verifyAccessToken, ACCESS_COOKIE } from '@/lib/auth'
 import { createAuditLog } from '@/lib/audit'
+import { resolveProdiInfo } from '@/lib/prodi-codes'
 
 async function getCurrentUser(req: Request) {
   let userId = req.headers.get('x-user-id')
@@ -31,24 +32,42 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get('search')?.trim() || ''
     const prodiCode = searchParams.get('prodiCode')?.trim() || ''
     const kategori = searchParams.get('kategori')?.trim() || ''
-    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '100', 10)))
+    const limit = Math.min(300, Math.max(1, parseInt(searchParams.get('limit') || '150', 10)))
 
-    const where: any = { isActive: true }
+    // Sesuai arahan: gunakan kode baru semua yang berawalan FS
+    const conditions: any[] = [
+      { isActive: true },
+      { kodeMatkul: { startsWith: 'FS', mode: 'insensitive' } },
+    ]
 
     if (prodiCode && prodiCode !== 'ALL') {
-      where.prodiCode = prodiCode
+      const pInfo = resolveProdiInfo(prodiCode)
+      if (pInfo) {
+        conditions.push({
+          OR: [
+            { prodiCode: { in: [pInfo.officialCode, pInfo.legacyCode, ...pInfo.srsCodes] } },
+            { kodeMatkul: { startsWith: pInfo.officialCode, mode: 'insensitive' } },
+          ],
+        })
+      } else {
+        conditions.push({ prodiCode })
+      }
     }
 
     if (kategori && (kategori === 'INTI' || kategori === 'NON_INTI')) {
-      where.kategori = kategori
+      conditions.push({ kategori })
     }
 
     if (search) {
-      where.OR = [
-        { kodeMatkul: { contains: search, mode: 'insensitive' } },
-        { namaMatkul: { contains: search, mode: 'insensitive' } },
-      ]
+      conditions.push({
+        OR: [
+          { kodeMatkul: { contains: search, mode: 'insensitive' } },
+          { namaMatkul: { contains: search, mode: 'insensitive' } },
+        ],
+      })
     }
+
+    const where: any = conditions.length > 1 ? { AND: conditions } : conditions[0]
 
     const items = await prisma.mataKuliah.findMany({
       where,

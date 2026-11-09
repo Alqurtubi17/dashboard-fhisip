@@ -1,20 +1,24 @@
+import { resolveProdiInfo } from './prodi-codes'
+
 /**
  * Utilities for Pengguguran Mata Kuliah Module
  */
 
 export const PRODI_OPTIONS = [
-  { code: 'HKUM', name: 'S1 Ilmu Hukum' },
-  { code: 'IKOM', name: 'S1 Ilmu Komunikasi' },
-  { code: 'ADPU', name: 'S1 Administrasi Publik' },
-  { code: 'ADBI', name: 'S1 Administrasi Bisnis' },
-  { code: 'IPEM', name: 'S1 Ilmu Pemerintahan' },
-  { code: 'SOSI', name: 'S1 Sosiologi' },
-  { code: 'SING', name: 'S1 Sastra Inggris' },
-  { code: 'PUS', name: 'S1 Ilmu Perpustakaan' },
-  { code: 'PAJAK', name: 'D3 Perpajakan' },
+  { code: 'FSIH', name: 'S1 Ilmu Hukum (FSIH)' },
+  { code: 'FSSP', name: 'S1 Perpajakan (FSSP)' },
+  { code: 'FSAP', name: 'S1 Administrasi Publik (FSAP)' },
+  { code: 'FSAB', name: 'S1 Administrasi Bisnis (FSAB)' },
+  { code: 'FSIK', name: 'S1 Ilmu Komunikasi (FSIK)' },
+  { code: 'FSIP', name: 'S1 Ilmu Perpustakaan (FSIP)' },
+  { code: 'FSSO', name: 'S1 Sosiologi (FSSO)' },
+  { code: 'FSSI', name: 'S1 Sastra Inggris (FSSI)' },
+  { code: 'FSPE', name: 'S1 Ilmu Pemerintahan (FSPE)' },
 ]
 
 export function getProdiNameByCode(code: string): string {
+  const resolved = resolveProdiInfo(code)
+  if (resolved) return resolved.name
   const found = PRODI_OPTIONS.find((p) => p.code.toUpperCase() === code.toUpperCase())
   return found ? found.name : code
 }
@@ -22,6 +26,75 @@ export function getProdiNameByCode(code: string): string {
 export function cleanStudentName(name: string | null | undefined): string {
   if (!name) return ''
   return name.replace(/\s*\(.*?\)\s*/g, '').trim()
+}
+
+export function formatAcademicStatus(rawStatus?: string | null): {
+  label: string
+  fullText: string
+  badgeBg: string
+  badgeText: string
+  badgeBorder: string
+} {
+  const full = (rawStatus || 'Aktif').trim()
+  const lower = full.toLowerCase()
+
+  if (lower === 'aktif') {
+    return {
+      label: 'Aktif',
+      fullText: full,
+      badgeBg: 'bg-emerald-50',
+      badgeText: 'text-emerald-700',
+      badgeBorder: 'border-emerald-200',
+    }
+  }
+
+  if (lower.includes('alumni') || lower.includes('lulus')) {
+    return {
+      label: 'Alumni',
+      fullText: full,
+      badgeBg: 'bg-blue-50',
+      badgeText: 'text-blue-700',
+      badgeBorder: 'border-blue-200',
+    }
+  }
+
+  if (lower.includes('pindah') || lower.includes('batal') || lower.includes('pending')) {
+    return {
+      label: 'Pindah / Batal Registrasi',
+      fullText: full,
+      badgeBg: 'bg-amber-50',
+      badgeText: 'text-amber-800',
+      badgeBorder: 'border-amber-200',
+    }
+  }
+
+  if (lower.includes('non-aktif') || lower.includes('belum pernah')) {
+    return {
+      label: 'Non-Aktif',
+      fullText: full,
+      badgeBg: 'bg-slate-100',
+      badgeText: 'text-slate-700',
+      badgeBorder: 'border-slate-200',
+    }
+  }
+
+  if (lower.includes('drop out') || lower.includes('do') || lower.includes('mengundurkan') || lower.includes('meninggal')) {
+    return {
+      label: 'Tidak Aktif',
+      fullText: full,
+      badgeBg: 'bg-rose-50',
+      badgeText: 'text-rose-700',
+      badgeBorder: 'border-rose-200',
+    }
+  }
+
+  return {
+    label: full.length > 22 ? full.slice(0, 20) + '...' : full,
+    fullText: full,
+    badgeBg: 'bg-slate-100',
+    badgeText: 'text-slate-700',
+    badgeBorder: 'border-slate-200',
+  }
 }
 
 export type StatusInfo = {

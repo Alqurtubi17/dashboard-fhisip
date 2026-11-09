@@ -53,7 +53,7 @@ export function Pagination({
         </span>
 
         <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
-          <label htmlFor="page-size-select" className="text-slate-500">Tampilkan:</label>
+          <label htmlFor="page-size-select" className="text-slate-500 font-medium">Tampilkan:</label>
           <select
             id="page-size-select"
             value={pageSize}
@@ -61,7 +61,7 @@ export function Pagination({
               onPageSizeChange(Number(e.target.value))
               onPageChange(1)
             }}
-            className="bg-white border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-ut-blue"
+            className="bg-white border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy cursor-pointer"
           >
             {pageSizeOptions.map((option) => (
               <option key={option} value={option}>
@@ -77,8 +77,9 @@ export function Pagination({
         <button
           onClick={() => onPageChange(validCurrentPage - 1)}
           disabled={validCurrentPage <= 1}
-          className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white transition"
+          className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white transition cursor-pointer disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-ut-navy/20"
           title="Halaman Sebelumnya"
+          aria-label="Halaman Sebelumnya"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -88,9 +89,9 @@ export function Pagination({
             <button
               key={idx}
               onClick={() => onPageChange(p)}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+              className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer focus-visible:ring-2 focus-visible:ring-ut-navy/20 ${
                 validCurrentPage === p
-                  ? 'bg-ut-navy text-white shadow-sm'
+                  ? 'bg-ut-navy text-white shadow-2xs'
                   : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-700'
               }`}
             >
@@ -106,8 +107,9 @@ export function Pagination({
         <button
           onClick={() => onPageChange(validCurrentPage + 1)}
           disabled={validCurrentPage >= totalPages}
-          className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white transition"
+          className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white transition cursor-pointer disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-ut-navy/20"
           title="Halaman Selanjutnya"
+          aria-label="Halaman Selanjutnya"
         >
           <ChevronRight className="w-4 h-4" />
         </button>

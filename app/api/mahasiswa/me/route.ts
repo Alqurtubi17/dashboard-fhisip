@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { verifyStudentToken, STUDENT_COOKIE } from '@/lib/auth'
 import { evaluatePeriodTimeline } from '@/lib/pengguguran-utils'
+import { resolveProdiInfo } from '@/lib/prodi-codes'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,13 +62,16 @@ export async function GET(req: NextRequest) {
       if (s.status === 'DITOLAK_PRODI' || s.status === 'DITOLAK_AKADEMIK') stats.ditolak += s._count._all
     }
 
+    const prodiInfo = resolveProdiInfo(student.prodiCode) || resolveProdiInfo(student.prodi)
+    const officialProdiCode = prodiInfo?.officialCode || student.prodiCode || 'FSIH'
+
     return NextResponse.json({
       success: true,
       student: {
         nim: student.nim,
         name: student.name,
-        prodi: student.prodi,
-        prodiCode: student.prodiCode || 'HKUM',
+        prodi: prodiInfo?.name || student.prodi,
+        prodiCode: officialProdiCode,
         semester: student.semester,
         status: student.status,
         ipk: student.ipk,

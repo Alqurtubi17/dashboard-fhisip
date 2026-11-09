@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
 import { fetchUtApi } from './ut-api-client'
+import { resolveProdiInfo, isGeneralUniversityCourse } from './prodi-codes'
 
 export type AcademicCourse = {
   kode_mk: string
@@ -32,7 +33,17 @@ type CacheEntry = {
 const cacheStore = new Map<string, CacheEntry>()
 
 /**
- * Service Client Integrasi API Akademik Mata Kuliah
+ * Service Client Integrasi API Akademik Mata Kuliah FHISIP UT
+ * Menggunakan kode resmi API Program Studi:
+ * - FSIH: S1 Ilmu Hukum
+ * - FSSP: S1 Perpajakan
+ * - FSAP: S1 Administrasi Publik
+ * - FSAB: S1 Administrasi Bisnis
+ * - FSIK: S1 Ilmu Komunikasi
+ * - FSIP: S1 Ilmu Perpustakaan
+ * - FSSO: S1 Sosiologi
+ * - FSSI: S1 Sastra Inggris
+ * - FSPE: S1 Ilmu Pemerintahan
  */
 export class AcademicApiService {
   private static get baseUrl(): string {
@@ -59,7 +70,8 @@ export class AcademicApiService {
 
   /**
    * Mengambil daftar mata kuliah lengkap untuk mahasiswa berdasarkan NIM, Prodi, dan Kurikulum.
-   * Terhubung langsung ke API UT & basis data kurikulum akademik.
+   * Setiap mahasiswa hanya disajikan mata kuliah yang relevan dengan Program Studi miliknya,
+   * bebas dari kontaminasi/pencampuran mata kuliah program studi lain.
    */
   public static async getStudentCourses(params: {
     nim: string
@@ -67,7 +79,11 @@ export class AcademicApiService {
     kurikulum?: string
   }): Promise<AcademicApiResponse> {
     const { nim, prodiCode, kurikulum = '2024' } = params
-    const cacheKey = `courses:${nim}:${prodiCode}:${kurikulum}`
+    const prodiInfo = resolveProdiInfo(prodiCode)
+    const officialProdiCode = prodiInfo?.officialCode || prodiCode.toUpperCase()
+    const officialProdiName = prodiInfo?.name || 'FHISIP Universitas Terbuka'
+
+    const cacheKey = `courses:${nim}:${officialProdiCode}:${kurikulum}`
     const now = Date.now()
 
     // 1. Cek In-Memory Cache
@@ -83,7 +99,7 @@ export class AcademicApiService {
       }
     }
 
-    // Ambil tabel referensi klasifikasi resmi lokal
+    // 2. Ambil basis data kurikulum lokal
     const officialCourses = await prisma.mataKuliah.findMany({
       where: { isActive: true },
       select: {
@@ -100,8 +116,58 @@ export class AcademicApiService {
 
     const officialMap = new Map(officialCourses.map((c) => [c.kodeMatkul.toUpperCase(), c]))
 
-    // 2. Coba ambil data mata kuliah mahasiswa langsung dari API LKAM (cetak-transkrip-sementara)
+    let isFromExternalApi = false
+
+    // 3. Ambil data mata kuliah resmi prodi mahasiswa dari API SRS UT (data-matkul: IA_YMX_KUDJQ)
+    if (prodiInfo?.srsCodes?.[0]) {
+      try {
+        const srsMatkulRes = await fetchUtApi('IA_YMX_KUDJQ', {
+          kodeProgramStudi: prodiInfo.srsCodes[0],
+          limit: 150,
+        })
+        if (srsMatkulRes.success && srsMatkulRes.data?.data?.dataMataKuliah) {
+          const apiCourses = srsMatkulRes.data.data.dataMataKuliah as any[]
+          for (const item of apiCourses) {
+            const rawKode = String(item.kode_matakuliah || '').trim().toUpperCase()
+            if (!rawKode || rawKode === '-') continue
+
+            const existing = officialMap.get(rawKode)
+            const nama = item.nama_matakuliah || existing?.namaMatkul || rawKode
+            const sks = parseInt(item.sks || '3', 10) || existing?.sks || 3
+
+            const isCore =
+              existing?.kategori === 'INTI' ||
+              isGeneralUniversityCourse(rawKode) ||
+              rawKode.endsWith('4500') ||
+              rawKode.endsWith('4560') ||
+              nama.toUpperCase().includes('TUGAS AKHIR PROGRAM') ||
+              nama.toUpperCase().includes('KARYA ILMIAH') ||
+              nama.toUpperCase().includes('PANCASILA') ||
+              nama.toUpperCase().includes('KEWARGANEGARAAN') ||
+              nama.toUpperCase().includes('AGAMA')
+
+            officialMap.set(rawKode, {
+              id: existing?.id || `api-${rawKode}`,
+              kodeMatkul: rawKode,
+              namaMatkul: nama,
+              sks,
+              prodiCode: officialProdiCode,
+              prodiName: officialProdiName,
+              kategori: isCore ? 'INTI' : 'NON_INTI',
+            })
+            isFromExternalApi = true
+          }
+        }
+      } catch {
+        // Fallback ke basis data lokal jika API SRS timeout/offline
+      }
+    }
+
+    // 4. Ambil data riwayat mata kuliah mahasiswa langsung dari API LKAM (UO_Z4X_MS_ZDE)
     let isFromLkam = false
+    const lkamCourseMap = new Map<string, any>()
+    const aliasToPrimary = new Map<string, string>()
+
     try {
       const lkamRes = await fetchUtApi('UO_Z4X_MS_ZDE', { nim })
       if (lkamRes.success && lkamRes.data?.data?.[0]?.body) {
@@ -112,10 +178,19 @@ export class AcademicApiService {
           const rawKode = String(item.kodemtk || '').trim()
           if (!rawKode || rawKode === '-') continue
 
-          // Handle format like "ADNI4211 (ADBI4330)" or "ADBI4330"
+          // Handle format like "MKWU4108 (MKWN4108)" or "ADNI4211 (ADBI4330)"
           const primaryKode = rawKode.split('(')[0].trim().toUpperCase()
           const aliasMatch = rawKode.match(/\((.*?)\)/)
           const aliasKode = aliasMatch ? aliasMatch[1].trim().toUpperCase() : null
+
+          if (aliasKode) {
+            aliasToPrimary.set(aliasKode, primaryKode)
+          }
+
+          // Lewati jika baris ini merupakan alias dari mata kuliah alih kredit yang sudah dimasukkan
+          if (aliasToPrimary.has(primaryKode) && lkamCourseMap.has(aliasToPrimary.get(primaryKode)!)) {
+            continue
+          }
 
           const matchedOfficial =
             officialMap.get(primaryKode) || (aliasKode ? officialMap.get(aliasKode) : undefined)
@@ -124,8 +199,8 @@ export class AcademicApiService {
           const sks = parseInt(item.sks || '3', 10) || matchedOfficial?.sks || 3
 
           const isCore =
-            primaryKode.startsWith('MKWU') ||
-            primaryKode.startsWith('MKDU') ||
+            matchedOfficial?.kategori === 'INTI' ||
+            isGeneralUniversityCourse(primaryKode) ||
             primaryKode.endsWith('4500') ||
             primaryKode.endsWith('4560') ||
             nama.toUpperCase().includes('TUGAS AKHIR PROGRAM') ||
@@ -134,59 +209,84 @@ export class AcademicApiService {
             nama.toUpperCase().includes('KEWARGANEGARAAN') ||
             nama.toUpperCase().includes('AGAMA')
 
-          officialMap.set(primaryKode, {
-            id: matchedOfficial?.id || `lkam-${primaryKode}`,
+          // SELALU tetapkan Program Studi mahasiswa bersangkutan
+          // Tidak boleh mengambil prodiCode dari data mentah prodi lain (misal HKUM)
+          lkamCourseMap.set(primaryKode, {
+            id: `lkam-${primaryKode}`,
             kodeMatkul: primaryKode,
             namaMatkul: nama,
             sks,
-            prodiCode: matchedOfficial?.prodiCode || prodiCode,
-            prodiName: matchedOfficial?.prodiName || 'FHISIP UT',
+            prodiCode: officialProdiCode,
+            prodiName: officialProdiName,
             kategori: isCore ? 'INTI' : 'NON_INTI',
           })
 
           isFromLkam = true
+        }
+
+        // Hapus duplikat alias jika sempat terdaftar sebelum primary
+        for (const [alias, primary] of aliasToPrimary.entries()) {
+          if (lkamCourseMap.has(alias) && lkamCourseMap.has(primary)) {
+            lkamCourseMap.delete(alias)
+          }
         }
       }
     } catch {
       // Abaikan jika LKAM offline, gunakan repositori kurikulum resmi
     }
 
-    // 3. Susun daftar mata kuliah:
-    // Sesuaikan antara Program Studi mahasiswa dan mata kuliah yang diambil mahasiswa (LKAM)
-    const studentProdiUpper = prodiCode.toUpperCase()
-    const allItems = Array.from(officialMap.values())
+    // 5. Filter mata kuliah: HANYA mata kuliah yang relevan dengan Program Studi mahasiswa
+    const isProdiMatch = (c: any) => {
+      if (!prodiInfo) {
+        return (c.prodiCode || '').toUpperCase() === officialProdiCode
+      }
+      const cProdiUpper = (c.prodiCode || '').toUpperCase()
+      return (
+        cProdiUpper === prodiInfo.officialCode ||
+        cProdiUpper === prodiInfo.legacyCode ||
+        prodiInfo.srsCodes.includes(cProdiUpper) ||
+        prodiInfo.prefixes.some((pfx) => c.kodeMatkul.toUpperCase().startsWith(pfx))
+      )
+    }
 
-    let combinedList: typeof allItems = []
+    const finalMap = new Map<string, any>()
 
     if (isFromLkam) {
-      // Jika mahasiswa memiliki data riwayat LKAM resmi, tampilkan mata kuliah yang telah diambil mahasiswa di LKAM
-      combinedList = allItems.filter(
-        (c) => c.id.startsWith('lkam-') || c.prodiCode.toUpperCase() === studentProdiUpper
-      )
+      // Mahasiswa dengan LKAM:
+      // 1. Masukkan semua mata kuliah yang diambil mahasiswa dari LKAM
+      for (const [k, c] of lkamCourseMap.entries()) {
+        finalMap.set(k, c)
+      }
+      // 2. Tambahkan mata kuliah kurikulum resmi prodi mahasiswa yang belum diambil
+      for (const c of officialMap.values()) {
+        const key = c.kodeMatkul.toUpperCase()
+        if (isProdiMatch(c) && !finalMap.has(key)) {
+          finalMap.set(key, {
+            ...c,
+            prodiCode: officialProdiCode,
+            prodiName: officialProdiName,
+          })
+        }
+      }
     } else {
-      // Tampilkan hanya mata kuliah kurikulum Program Studi mahasiswa bersangkutan + MKWU/MKDU universitas
-      const prodiSpecific = allItems.filter((c) => c.prodiCode.toUpperCase() === studentProdiUpper)
-      const generalCourses = allItems.filter(
-        (c) =>
-          c.kodeMatkul.startsWith('MKWU') ||
-          c.kodeMatkul.startsWith('MKDU') ||
-          c.kodeMatkul.startsWith('ISIP') ||
-          c.kodeMatkul.startsWith('FSIP')
-      )
-      combinedList = [...prodiSpecific, ...generalCourses]
+      // Mahasiswa tanpa riwayat LKAM: Sajikan mata kuliah kurikulum resmi prodinya saja
+      for (const c of officialMap.values()) {
+        const key = c.kodeMatkul.toUpperCase()
+        if (isProdiMatch(c)) {
+          finalMap.set(key, {
+            ...c,
+            prodiCode: officialProdiCode,
+            prodiName: officialProdiName,
+          })
+        }
+      }
     }
 
-    // Deduplikasi
-    const combinedMap = new Map<string, typeof allItems[0]>()
-    for (const c of combinedList) {
-      combinedMap.set(c.kodeMatkul, c)
-    }
-
-    const finalCourses: AcademicCourse[] = Array.from(combinedMap.values()).map((c) => {
+    // 6. Bentuk output akhir AcademicCourse
+    const finalCourses: AcademicCourse[] = Array.from(finalMap.values()).map((c) => {
       const isCore =
         c.kategori === 'INTI' ||
-        c.kodeMatkul.startsWith('MKWU') ||
-        c.kodeMatkul.startsWith('MKDU') ||
+        isGeneralUniversityCourse(c.kodeMatkul) ||
         c.kodeMatkul.endsWith('4500') ||
         c.kodeMatkul.endsWith('4560') ||
         c.namaMatkul.toUpperCase().includes('TUGAS AKHIR PROGRAM') ||
@@ -202,8 +302,8 @@ export class AcademicApiService {
         kode_mk: c.kodeMatkul,
         nama_mk: c.namaMatkul,
         sks: c.sks,
-        kode_prodi: c.prodiCode,
-        nama_prodi: c.prodiName,
+        kode_prodi: officialProdiCode,
+        nama_prodi: officialProdiName,
         kategori_mk: kategori,
         kurikulum,
         status_mk: 'aktif',
@@ -214,7 +314,7 @@ export class AcademicApiService {
       }
     })
 
-    // Sort by kode_mk
+    // Sort ascending berdasarkan kode mata kuliah
     finalCourses.sort((a, b) => a.kode_mk.localeCompare(b.kode_mk))
 
     // Simpan ke Cache
@@ -222,7 +322,7 @@ export class AcademicApiService {
 
     return {
       success: true,
-      source: isFromLkam ? 'EXTERNAL_API' : 'LOCAL_REPOSITORY',
+      source: isFromLkam || isFromExternalApi ? 'EXTERNAL_API' : 'LOCAL_REPOSITORY',
       apiConfigured: true,
       message: 'Data mata kuliah berhasil dimuat dari sistem akademik.',
       timestamp: new Date().toISOString(),
@@ -237,5 +337,3 @@ export class AcademicApiService {
     cacheStore.clear()
   }
 }
-
-

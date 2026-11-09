@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { verifyAccessToken, ACCESS_COOKIE } from '@/lib/auth'
 import { createAuditLog } from '@/lib/audit'
 import { evaluatePeriodTimeline, getProdiNameByCode } from '@/lib/pengguguran-utils'
+import { resolveProdiInfo } from '@/lib/prodi-codes'
 
 async function getCurrentUser(req: Request) {
   let userId = req.headers.get('x-user-id')
@@ -52,7 +53,12 @@ export async function GET(req: NextRequest) {
     if (isKaprodi && user.prodiCode) {
       where.prodiCode = user.prodiCode
     } else if (prodi && prodi !== 'ALL') {
-      where.prodiCode = prodi
+      const pInfo = resolveProdiInfo(prodi)
+      if (pInfo) {
+        where.prodiCode = { in: [pInfo.officialCode, pInfo.legacyCode, ...pInfo.srsCodes] }
+      } else {
+        where.prodiCode = prodi
+      }
     }
 
     // Regular users (e.g., student/pengaju) only see their own submissions
@@ -171,9 +177,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Body permintaan tidak valid' }, { status: 400 })
     }
 
-    const { nim, namaMahasiswa, prodiCode, mataKuliahId, alasan, periodeId } = body
+    const { nim, namaMahasiswa, prodiCode, mataKuliahId, mataKuliahIds, alasan, periodeId } = body
 
-    if (!nim || !namaMahasiswa || !prodiCode || !mataKuliahId || !alasan) {
+    const courseIds: string[] = Array.isArray(mataKuliahIds) && mataKuliahIds.length > 0
+      ? mataKuliahIds.map(String)
+      : mataKuliahId ? [String(mataKuliahId)] : []
+
+    if (!nim || !namaMahasiswa || !prodiCode || courseIds.length === 0 || !alasan) {
       return NextResponse.json(
         { error: 'Semua kolom wajib diisi (NIM, Nama Mahasiswa, Program Studi, Mata Kuliah, dan Alasan)' },
         { status: 400 }
@@ -207,103 +217,128 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 2. Validasi Mata Kuliah
-    const mataKuliah = await prisma.mataKuliah.findUnique({
-      where: { id: mataKuliahId },
+    // 2. Validasi Mata Kuliah yang Dipilih
+    const targetCourses = await prisma.mataKuliah.findMany({
+      where: { id: { in: courseIds } },
     })
 
-    if (!mataKuliah || !mataKuliah.isActive) {
-      return NextResponse.json({ error: 'Mata kuliah yang dipilih tidak ditemukan atau tidak aktif.' }, { status: 400 })
-    }
-
-    // 3. Validasi Utama: Kategori INTI vs NON_INTI
-    if (mataKuliah.kategori === 'INTI') {
+    if (targetCourses.length !== courseIds.length) {
       return NextResponse.json(
-        {
-          error: 'Mata kuliah ini termasuk kategori Mata Kuliah Inti dan tidak dapat diajukan untuk pengguguran.',
-        },
+        { error: 'Satu atau lebih mata kuliah yang dipilih tidak ditemukan dalam sistem.' },
         { status: 400 }
       )
     }
 
-    // 4. Pencegahan Pengajuan Ganda
-    const existingActive = await prisma.pengajuanPengguguran.findFirst({
+    // Validasi setiap mata kuliah (kategori NON_INTI & harus berawalan FS)
+    for (const mk of targetCourses) {
+      if (!mk.isActive) {
+        return NextResponse.json({ error: `Mata kuliah ${mk.kodeMatkul} sedang tidak aktif.` }, { status: 400 })
+      }
+      if (mk.kategori === 'INTI') {
+        return NextResponse.json(
+          {
+            error: `Mata kuliah ${mk.kodeMatkul} - ${mk.namaMatkul} termasuk kategori Mata Kuliah Inti dan tidak dapat digugurkan.`,
+          },
+          { status: 400 }
+        )
+      }
+      if (!mk.kodeMatkul.toUpperCase().startsWith('FS')) {
+        return NextResponse.json(
+          {
+            error: `Mata kuliah ${mk.kodeMatkul} bukan merupakan mata kuliah kurikulum resmi FHISIP yang memenuhi syarat pengguguran.`,
+          },
+          { status: 400 }
+        )
+      }
+    }
+
+    // 3. Pencegahan Pengajuan Ganda
+    const existingActive = await prisma.pengajuanPengguguran.findMany({
       where: {
         nim: nim.trim(),
-        mataKuliahId: mataKuliah.id,
+        mataKuliahId: { in: courseIds },
         periodeId: periode.id,
         status: {
           in: ['MENUNGGU_VERIFIKASI_PRODI', 'DISETUJUI_PRODI', 'DISETUJUI_AKADEMIK'],
         },
       },
+      select: { kodeMatkul: true, namaMatkul: true },
     })
 
-    if (existingActive) {
+    if (existingActive.length > 0) {
+      const dupList = existingActive.map((e) => e.kodeMatkul).join(', ')
       return NextResponse.json(
         {
-          error: `Mahasiswa dengan NIM ${nim} sudah memiliki pengajuan aktif untuk mata kuliah ${mataKuliah.kodeMatkul} pada periode ${periode.semester}. Tidak dapat mengajukan ulang sebelum pengajuan sebelumnya ditolak.`,
+          error: `Mahasiswa dengan NIM ${nim} sudah memiliki pengajuan aktif untuk mata kuliah: ${dupList} pada periode ini.`,
         },
         { status: 400 }
       )
     }
 
-    // 5. Generate Nomor Pengajuan Unik
+    // 4. Hitung urutan nomor pengajuan
     const countToday = await prisma.pengajuanPengguguran.count({
       where: { periodeId: periode.id },
     })
-    const serial = String(countToday + 1).padStart(4, '0')
-    const nomorPengajuan = `PG-${periode.semester}-${serial}`
 
     const prodiName = getProdiNameByCode(prodiCode)
 
-    // 6. Transaksi Database
-    const newPengajuan = await prisma.$transaction(async (tx) => {
-      const created = await tx.pengajuanPengguguran.create({
-        data: {
-          nomorPengajuan,
-          periodeId: periode.id,
-          pengajuId: user.id,
-          nim: nim.trim(),
-          namaMahasiswa: namaMahasiswa.trim(),
-          prodiCode: prodiCode.trim().toUpperCase(),
-          prodiName,
-          mataKuliahId: mataKuliah.id,
-          kodeMatkul: mataKuliah.kodeMatkul,
-          namaMatkul: mataKuliah.namaMatkul,
-          sks: mataKuliah.sks,
-          kategoriMatkul: mataKuliah.kategori,
-          alasan: alasan.trim(),
-          status: 'MENUNGGU_VERIFIKASI_PRODI',
-        },
-      })
+    // 5. Transaksi Database Batch
+    const createdList = await prisma.$transaction(async (tx) => {
+      const results = []
+      for (let i = 0; i < targetCourses.length; i++) {
+        const mk = targetCourses[i]
+        const serial = String(countToday + 1 + i).padStart(4, '0')
+        const nomorPengajuan = `PG-${periode.semester}-${serial}`
 
-      // Catat ke riwayat
-      await tx.riwayatPengguguran.create({
-        data: {
-          pengajuanId: created.id,
-          statusAwal: null,
-          statusAkhir: 'MENUNGGU_VERIFIKASI_PRODI',
-          actorId: user.id,
-          actorName: user.name,
-          actorRole: user.role.name,
-          catatan: 'Pengajuan pengguguran diajukan ke Program Studi.',
-          action: 'SUBMIT',
-        },
-      })
+        const created = await tx.pengajuanPengguguran.create({
+          data: {
+            nomorPengajuan,
+            periodeId: periode.id,
+            pengajuId: user.id,
+            nim: nim.trim(),
+            namaMahasiswa: namaMahasiswa.trim(),
+            prodiCode: prodiCode.trim().toUpperCase(),
+            prodiName,
+            mataKuliahId: mk.id,
+            kodeMatkul: mk.kodeMatkul,
+            namaMatkul: mk.namaMatkul,
+            sks: mk.sks,
+            kategoriMatkul: mk.kategori,
+            alasan: alasan.trim(),
+            status: 'MENUNGGU_VERIFIKASI_PRODI',
+          },
+        })
 
-      return created
+        await tx.riwayatPengguguran.create({
+          data: {
+            pengajuanId: created.id,
+            statusAwal: null,
+            statusAkhir: 'MENUNGGU_VERIFIKASI_PRODI',
+            actorId: user.id,
+            actorName: user.name,
+            actorRole: user.role.name,
+            catatan: `Pengajuan pengguguran diajukan ke Program Studi untuk mata kuliah ${mk.kodeMatkul}.`,
+            action: 'SUBMIT',
+          },
+        })
+
+        results.push(created)
+      }
+      return results
     })
 
+    const courseCodes = targetCourses.map((m) => m.kodeMatkul).join(', ')
     await createAuditLog(
-      `Membuat Pengajuan Pengguguran MK: ${nomorPengajuan} (${mataKuliah.kodeMatkul} - ${nim})`,
+      `Membuat Pengajuan Pengguguran MK (${createdList.length} MK: ${courseCodes} - NIM ${nim})`,
       req
     )
 
     return NextResponse.json(
       {
         success: true,
-        message: 'Pengajuan pengguguran mata kuliah berhasil dikirim ke Program Studi.',
-        data: newPengajuan,
+        message: `${createdList.length} pengajuan pengguguran mata kuliah berhasil dikirim ke Program Studi.`,
+        data: createdList.length === 1 ? createdList[0] : createdList,
+        count: createdList.length,
       },
       { status: 201 }
     )

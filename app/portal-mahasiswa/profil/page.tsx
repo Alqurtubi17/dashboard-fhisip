@@ -11,7 +11,7 @@ import {
   Loader2,
   Lock,
 } from 'lucide-react'
-import { cleanStudentName } from '@/lib/pengguguran-utils'
+import { cleanStudentName, formatAcademicStatus } from '@/lib/pengguguran-utils'
 
 export default function StudentProfilePage() {
   const [student, setStudent] = useState<any>(null)
@@ -25,6 +25,7 @@ export default function StudentProfilePage() {
   const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
+    document.title = 'Profil Mahasiswa | Portal Mahasiswa FHISIP'
     fetch('/api/mahasiswa/me')
       .then((r) => r.json())
       .then((json) => {
@@ -99,33 +100,49 @@ export default function StudentProfilePage() {
         </div>
 
         {/* Info Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-            <span className="font-bold text-slate-400 text-[10px] uppercase tracking-wider">Nama Mahasiswa</span>
-            <p className="font-bold text-slate-800 text-sm">{cleanStudentName(student?.name)}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-1">
+            <span className="font-semibold text-slate-500 text-[11px] uppercase tracking-wider block">
+              Nama Mahasiswa
+            </span>
+            <p className="font-bold text-slate-900 text-sm">{cleanStudentName(student?.name)}</p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-            <span className="font-bold text-slate-400 text-[10px] uppercase tracking-wider">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-1">
+            <span className="font-semibold text-slate-500 text-[11px] uppercase tracking-wider block">
               Nomor Induk Mahasiswa (NIM)
             </span>
-            <p className="font-mono font-bold text-slate-800 text-sm">{student?.nim}</p>
+            <p className="font-bold text-slate-900 text-sm">{student?.nim}</p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-            <span className="font-bold text-slate-400 text-[10px] uppercase tracking-wider">Program Studi</span>
-            <p className="font-semibold text-slate-700">{student?.prodi}</p>
-            <span className="text-[10px] text-slate-400">Kode: {student?.prodiCode}</span>
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-1">
+            <span className="font-semibold text-slate-500 text-[11px] uppercase tracking-wider block">
+              Program Studi
+            </span>
+            <p className="font-bold text-slate-900 text-sm">{student?.prodi}</p>
+            {student?.prodiCode && (
+              <p className="text-[11px] text-slate-500 font-normal">Kode: {student.prodiCode}</p>
+            )}
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-            <span className="font-bold text-slate-400 text-[10px] uppercase tracking-wider">Status Akademik</span>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                {student?.status}
-              </span>
-              <span className="text-slate-500">Semester {student?.semester}</span>
-            </div>
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-1.5">
+            <span className="font-semibold text-slate-500 text-[11px] uppercase tracking-wider block">
+              Status Akademik
+            </span>
+            {(() => {
+              const statusInfo = formatAcademicStatus(student?.status)
+              return (
+                <div>
+                  <span
+                    title={statusInfo.fullText}
+                    className={`inline-block px-2.5 py-1 rounded-md text-xs font-bold border ${statusInfo.badgeBg} ${statusInfo.badgeText} ${statusInfo.badgeBorder}`}
+                  >
+                    {statusInfo.label}
+                  </span>
+                  <p className="text-[11px] text-slate-500 font-normal mt-1">Semester {student?.semester || 1}</p>
+                </div>
+              )
+            })()}
           </div>
         </div>
 

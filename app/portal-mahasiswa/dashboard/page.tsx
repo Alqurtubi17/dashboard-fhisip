@@ -26,6 +26,7 @@ export default function StudentDashboardPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    document.title = 'Dashboard | Portal Mahasiswa FHISIP'
     Promise.all([
       fetch('/api/mahasiswa/me').then((r) => r.json()),
       fetch('/api/mahasiswa/pengguguran?limit=5').then((r) => r.json()),
@@ -68,7 +69,7 @@ export default function StudentDashboardPage() {
             </h1>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="px-3 py-1 rounded-xl bg-white/10 border border-white/10 text-white font-mono font-medium">
+            <span className="px-3 py-1 rounded-xl bg-white/10 border border-white/10 text-white font-medium">
               NIM: <strong className="text-amber-300">{student?.nim}</strong>
             </span>
             <span className="px-3 py-1 rounded-xl bg-white/10 border border-white/10 text-white font-medium">
@@ -107,7 +108,7 @@ export default function StudentDashboardPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-bold text-slate-800 text-sm sm:text-base">{activePeriode.nama}</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                     Aktif
                   </span>
                 </div>
@@ -269,13 +270,13 @@ export default function StudentDashboardPage() {
                         <span className="text-[10px] text-slate-400">{item.sks} SKS</span>
                       </td>
                       <td className="px-4 py-3.5">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                           Non-Inti
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-slate-500">{formatWIBDate(item.createdAt)}</td>
                       <td className="px-4 py-3.5">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold border ${st.badgeBg}`}>
+                        <span className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-semibold border ${st.badgeBg}`}>
                           {st.label}
                         </span>
                       </td>

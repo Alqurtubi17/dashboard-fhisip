@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     // Panggil Service Integrasi Academic API
     const apiResult = await AcademicApiService.getStudentCourses({
       nim: student.nim,
-      prodiCode: student.prodiCode || 'HKUM',
+      prodiCode: student.prodiCode || student.prodi || 'FSIH',
       kurikulum: student.kurikulum || '2024',
     })
 

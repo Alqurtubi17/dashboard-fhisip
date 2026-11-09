@@ -49,6 +49,10 @@ export default function StudentRiwayatPage() {
   }
 
   useEffect(() => {
+    document.title = 'Riwayat Pengajuan | Portal Mahasiswa FHISIP'
+  }, [])
+
+  useEffect(() => {
     fetchSubmissions()
   }, [page, pageSize, selectedStatus])
 
@@ -155,7 +159,7 @@ export default function StudentRiwayatPage() {
                       </td>
                       <td className="px-4 py-3.5 text-slate-500">{formatWIBDate(item.createdAt)}</td>
                       <td className="px-4 py-3.5">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold border ${st.badgeBg}`}>
+                        <span className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-semibold border ${st.badgeBg}`}>
                           {st.label}
                         </span>
                       </td>

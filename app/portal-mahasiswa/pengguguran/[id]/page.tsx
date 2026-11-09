@@ -31,6 +31,10 @@ export default function StudentPengguguranDetailPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    document.title = 'Detail Pengajuan | Portal Mahasiswa FHISIP'
+  }, [])
+
+  useEffect(() => {
     if (!id) return
 
     fetch(`/api/mahasiswa/pengguguran/${id}`)
@@ -112,7 +116,7 @@ export default function StudentPengguguranDetailPage() {
               <span className="font-mono text-xs font-extrabold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">
                 {item.nomorPengajuan}
               </span>
-              <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold border ${st.badgeBg}`}>
+              <span className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold border ${st.badgeBg}`}>
                 {st.label}
               </span>
             </div>
@@ -299,7 +303,7 @@ export default function StudentPengguguranDetailPage() {
             </div>
             <div>
               <span className="text-slate-400 block text-[11px]">Kategori:</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Non-Inti (Dapat Diajukan)
               </span>
             </div>

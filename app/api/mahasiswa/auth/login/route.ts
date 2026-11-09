@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { signStudentToken, STUDENT_COOKIE } from '@/lib/auth'
+import { resolveProdiInfo } from '@/lib/prodi-codes'
 
 export async function POST(req: NextRequest) {
   try {
@@ -62,12 +63,16 @@ export async function POST(req: NextRequest) {
       data: { lastLoginAt: new Date() },
     })
 
+    // Resolusi kode prodi resmi (FSIH, FSAP, FSAB, FSIP, FSIK, FSSO, FSSI, FSSP)
+    const prodiInfo = resolveProdiInfo(student.prodiCode) || resolveProdiInfo(student.prodi)
+    const officialProdiCode = prodiInfo?.officialCode || student.prodiCode || 'FSIH'
+
     // Buat Student Session Token
     const studentToken = await signStudentToken({
       nim: student.nim,
       name: student.name,
-      prodiCode: student.prodiCode || 'HKUM',
-      prodi: student.prodi,
+      prodiCode: officialProdiCode,
+      prodi: prodiInfo?.name || student.prodi,
       role: 'mahasiswa',
     })
 
@@ -77,8 +82,8 @@ export async function POST(req: NextRequest) {
       student: {
         nim: student.nim,
         name: student.name,
-        prodi: student.prodi,
-        prodiCode: student.prodiCode || 'HKUM',
+        prodi: prodiInfo?.name || student.prodi,
+        prodiCode: officialProdiCode,
         semester: student.semester,
         status: student.status,
         ipk: student.ipk,

@@ -18,69 +18,73 @@ export async function GET(req: Request) {
 
     if (prodi !== 'ALL') {
       const pUpper = prodi.trim().toUpperCase()
-      if (pUpper === 'HKUM') {
+      if (pUpper === 'HKUM' || pUpper === 'FSIH') {
         andConditions.push({
           OR: [
             { prodiCode: '311' },
+            { prodiCode: 'FSIH' },
+            { prodiCode: 'HKUM' },
             { prodi: { contains: 'Hukum', mode: 'insensitive' } },
           ],
         })
-      } else if (pUpper === 'IKOM') {
+      } else if (pUpper === 'IKOM' || pUpper === 'FSIK') {
         andConditions.push({
           OR: [
             { prodiCode: '72' },
+            { prodiCode: 'FSIK' },
+            { prodiCode: 'IKOM' },
             { prodi: { contains: 'Komunikasi', mode: 'insensitive' } },
           ],
         })
-      } else if (pUpper === 'ADPU') {
+      } else if (pUpper === 'ADPU' || pUpper === 'FSAP') {
         andConditions.push({
           OR: [
-            { prodiCode: { in: ['50', '52', '86'] } },
+            { prodiCode: { in: ['50', '52', '86', 'FSAP', 'ADPU'] } },
             { prodi: { contains: 'Administrasi Negara', mode: 'insensitive' } },
             { prodi: { contains: 'Administrasi Publik', mode: 'insensitive' } },
           ],
         })
-      } else if (pUpper === 'ADBI') {
+      } else if (pUpper === 'ADBI' || pUpper === 'FSAB') {
         andConditions.push({
           OR: [
-            { prodiCode: '51' },
+            { prodiCode: { in: ['51', 'FSAB', 'ADBI'] } },
             { prodi: { contains: 'Administrasi Bisnis', mode: 'insensitive' } },
           ],
         })
-      } else if (pUpper === 'IPEM') {
+      } else if (pUpper === 'IPEM' || pUpper === 'FSPE') {
         andConditions.push({
           OR: [
-            { prodiCode: '71' },
+            { prodiCode: { in: ['71', 'FSPE', 'IPEM'] } },
             { prodi: { contains: 'Pemerintahan', mode: 'insensitive' } },
           ],
         })
-      } else if (pUpper === 'SOSI') {
+      } else if (pUpper === 'SOSI' || pUpper === 'FSSO') {
         andConditions.push({
           OR: [
-            { prodiCode: '70' },
+            { prodiCode: { in: ['70', 'FSSO', 'SOSI'] } },
             { prodi: { contains: 'Sosiologi', mode: 'insensitive' } },
           ],
         })
-      } else if (pUpper === 'SING') {
+      } else if (pUpper === 'SING' || pUpper === 'FSSI') {
         andConditions.push({
           OR: [
-            { prodiCode: { in: ['87', '47', '63', '64', '49', '48', '25', '21'] } },
+            { prodiCode: { in: ['87', '47', '63', '64', '49', '48', '25', '21', 'FSSI', 'SING'] } },
             { prodi: { contains: 'Sastra Inggris', mode: 'insensitive' } },
             { prodi: { contains: 'Bahasa Inggris', mode: 'insensitive' } },
             { prodi: { contains: 'English', mode: 'insensitive' } },
           ],
         })
-      } else if (pUpper === 'PUS') {
+      } else if (pUpper === 'PUS' || pUpper === 'FSIP') {
         andConditions.push({
           OR: [
-            { prodiCode: { in: ['310', '43'] } },
+            { prodiCode: { in: ['310', '43', 'FSIP', 'PUS'] } },
             { prodi: { contains: 'Perpustakaan', mode: 'insensitive' } },
           ],
         })
-      } else if (pUpper === 'PAJAK') {
+      } else if (pUpper === 'PAJAK' || pUpper === 'FSSP') {
         andConditions.push({
           OR: [
-            { prodiCode: '312' },
+            { prodiCode: { in: ['312', 'FSSP', 'PAJAK'] } },
             { prodi: { contains: 'Perpajakan', mode: 'insensitive' } },
             { prodi: { contains: 'Pajak', mode: 'insensitive' } },
           ],

@@ -9,7 +9,7 @@ export function FhisipLogo({
   variant?: 'light' | 'dark' | 'gold' | 'transparent'
 }) {
   return (
-    <div className={`relative flex items-center justify-center shrink-0 overflow-hidden rounded-xl shadow-sm ${className}`}>
+    <div className={`relative flex items-center justify-center shrink-0 overflow-hidden rounded-xl ${className}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={logoImg.src}

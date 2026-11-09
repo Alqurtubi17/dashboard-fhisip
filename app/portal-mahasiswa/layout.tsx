@@ -35,6 +35,23 @@ export default function StudentPortalLayout({ children }: { children: React.Reac
 
   const isLoginPage = pathname === '/portal-mahasiswa/login'
 
+  // Set webpage title dynamically based on active page
+  useEffect(() => {
+    const titles: Record<string, string> = {
+      '/portal-mahasiswa/dashboard': 'Dashboard | Portal Mahasiswa FHISIP',
+      '/portal-mahasiswa/pengguguran': 'Pengajuan Pengguguran | Portal Mahasiswa FHISIP',
+      '/portal-mahasiswa/riwayat': 'Riwayat Pengajuan | Portal Mahasiswa FHISIP',
+      '/portal-mahasiswa/profil': 'Profil Mahasiswa | Portal Mahasiswa FHISIP',
+      '/portal-mahasiswa/login': 'Login | Portal Mahasiswa FHISIP',
+    }
+
+    if (pathname.startsWith('/portal-mahasiswa/pengguguran/')) {
+      document.title = 'Detail Pengajuan | Portal Mahasiswa FHISIP'
+    } else {
+      document.title = titles[pathname] || 'Portal Mahasiswa FHISIP'
+    }
+  }, [pathname])
+
   useEffect(() => {
     if (isLoginPage) return
 
@@ -88,9 +105,7 @@ export default function StudentPortalLayout({ children }: { children: React.Reac
           {/* Logo & Portal Brand */}
           <div className="flex items-center gap-3">
             <Link href="/portal-mahasiswa/dashboard" className="flex items-center gap-3 group">
-              <div className="p-1.5 rounded-xl bg-white/5 border border-white/10 group-hover:bg-white/10 transition shadow-inner">
-                <FhisipLogo className="w-7 h-7" variant="gold" />
-              </div>
+              <FhisipLogo className="w-9 h-9" variant="gold" />
               <div className="flex flex-col">
                 <span className="font-extrabold text-white text-base tracking-wide leading-none group-hover:text-amber-300 transition">
                   FHISIP
