@@ -478,14 +478,9 @@ export default function MahasiswaPage() {
       {/* Page Header + Super Admin Sync Action */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/70">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              Portal Data Mahasiswa
-            </h1>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-ut-navy/10 text-ut-navy border border-ut-navy/20">
-              FHISIP UT
-            </span>
-          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Portal Data Mahasiswa
+          </h1>
           <p className="text-slate-500 text-xs sm:text-sm flex flex-wrap items-center gap-2 mt-1">
             <span>Sistem informasi dan monitoring akademik 9 Program Studi FHISIP Universitas Terbuka</span>
             {lastSyncedAt && (
