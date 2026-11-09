@@ -33,7 +33,7 @@ import {
 import { Pagination } from '@/components/ui/pagination'
 import { useDebounce } from '@/hooks/useDebounce'
 
-export type KebutuhanKelasItem = {
+type KebutuhanKelasItem = {
   id: string
   masa: string
   kodeMatkul: string
@@ -41,6 +41,7 @@ export type KebutuhanKelasItem = {
   sks: number
   prodiCode: string
   prodiName: string
+  semester?: number
   sipasNonTtm?: number
   nonSipas?: number
   ttmSipas?: number
@@ -54,6 +55,21 @@ export type KebutuhanKelasItem = {
   deltaKelas?: number
   deltaTutor?: number
 }
+
+const MASA_OPTIONS = [
+  { value: '20262', label: '2026 Genap' },
+  { value: '20261', label: '2026 Ganjil' },
+  { value: '20252', label: '2025 Genap' },
+  { value: '20251', label: '2025 Ganjil' },
+  { value: '20242', label: '2024 Genap' },
+  { value: '20241', label: '2024 Ganjil' },
+  { value: '20232', label: '2023 Genap' },
+  { value: '20231', label: '2023 Ganjil' },
+  { value: '20222', label: '2022 Genap' },
+  { value: '20221', label: '2022 Ganjil' },
+  { value: '20212', label: '2021 Genap' },
+  { value: '20211', label: '2021 Ganjil' },
+]
 
 type Summary = {
   masa?: string
@@ -94,6 +110,7 @@ export default function KebutuhanKelasPage() {
 
   // Filters & Sorting State
   const [selectedProdi, setSelectedProdi] = useState<string>('ALL')
+  const [selectedSemester, setSelectedSemester] = useState<string>('ALL')
   const [searchQuery, setSearchQuery] = useState<string>('')
   const debouncedSearchQuery = useDebounce(searchQuery, 400)
   const [page, setPage] = useState<number>(1)
@@ -125,7 +142,10 @@ export default function KebutuhanKelasPage() {
   // Sync Tuton modal state (registrasi.ut.ac.id)
   const [showTutonModal, setShowTutonModal] = useState<boolean>(false)
   const [syncingTuton, setSyncingTuton] = useState<boolean>(false)
+  const [syncMasa, setSyncMasa] = useState<string>('20261')
   const [syncProdi, setSyncProdi] = useState<string>('ALL')
+  const [syncSemester, setSyncSemester] = useState<string>('ALL')
+  const [syncCountMode, setSyncCountMode] = useState<'total' | 'filtered'>('total')
   const [tutonResult, setTutonResult] = useState<{ success: boolean; message: string } | null>(null)
   const [progressState, setProgressState] = useState<{
     percentage: number
@@ -150,7 +170,12 @@ export default function KebutuhanKelasPage() {
       const res = await fetch('/api/kebutuhan-kelas/sync-tuton', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ masa: selectedMasa, prodi: syncProdi }),
+        body: JSON.stringify({
+          masa: syncMasa || selectedMasa,
+          prodi: syncProdi,
+          semester: syncSemester,
+          countMode: syncCountMode,
+        }),
       })
 
       if (!res.ok || !res.body) {
@@ -231,7 +256,7 @@ export default function KebutuhanKelasPage() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const url = `/api/dashboard/kebutuhan-kelas?masa=${selectedMasa}&compareMasa=${compareMasa}&prodi=${selectedProdi}&query=${encodeURIComponent(
+      const url = `/api/dashboard/kebutuhan-kelas?masa=${selectedMasa}&compareMasa=${compareMasa}&prodi=${selectedProdi}&semester=${selectedSemester}&query=${encodeURIComponent(
         debouncedSearchQuery
       )}&page=1&pageSize=300&_t=${Date.now()}`
       const res = await fetch(url, { cache: 'no-store' })
@@ -253,7 +278,7 @@ export default function KebutuhanKelasPage() {
 
   useEffect(() => {
     fetchData()
-  }, [selectedMasa, compareMasa, selectedProdi, debouncedSearchQuery])
+  }, [selectedMasa, compareMasa, selectedProdi, selectedSemester, debouncedSearchQuery])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -281,7 +306,7 @@ export default function KebutuhanKelasPage() {
   const paginatedItems = sortedItems.slice((page - 1) * pageSize, page * pageSize)
 
   const handleExportExcel = () => {
-    const exportUrl = `/api/dashboard/kebutuhan-kelas/export?masa=${selectedMasa}&prodi=${selectedProdi}&query=${encodeURIComponent(
+    const exportUrl = `/api/dashboard/kebutuhan-kelas/export?masa=${selectedMasa}&prodi=${selectedProdi}&semester=${selectedSemester}&query=${encodeURIComponent(
       searchQuery
     )}`
     window.location.href = exportUrl
@@ -371,9 +396,11 @@ export default function KebutuhanKelasPage() {
               }}
               className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl font-bold text-ut-navy focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
             >
-              <option value="20261">Masa 2026.1 (Ganjil)</option>
-              <option value="20262">Masa 2026.2 (Genap)</option>
-              <option value="20271">Masa 2027.1 (Ganjil)</option>
+              {MASA_OPTIONS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label} ({m.value})
+                </option>
+              ))}
             </select>
           </div>
 
@@ -391,9 +418,11 @@ export default function KebutuhanKelasPage() {
               className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             >
               <option value="">-- Tanpa Pembanding --</option>
-              {selectedMasa !== '20261' && <option value="20261">Masa 2026.1 (Ganjil)</option>}
-              {selectedMasa !== '20262' && <option value="20262">Masa 2026.2 (Genap)</option>}
-              {selectedMasa !== '20271' && <option value="20271">Masa 2027.1 (Ganjil)</option>}
+              {MASA_OPTIONS.filter((m) => m.value !== selectedMasa).map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label} ({m.value})
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -520,7 +549,7 @@ export default function KebutuhanKelasPage() {
                   setSelectedProdi(e.target.value)
                   setPage(1)
                 }}
-                className="w-full sm:w-56 pl-3 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy font-semibold text-slate-700"
+                className="w-full sm:w-52 pl-3 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy font-semibold text-slate-700"
               >
                 <option value="ALL">Semua Program Studi (261 Matkul)</option>
                 <option value="HKUM">S1 Ilmu Hukum (40 Matkul)</option>
@@ -532,6 +561,30 @@ export default function KebutuhanKelasPage() {
                 <option value="SOSI">S1 Sosiologi (26 Matkul)</option>
                 <option value="PUS">S1 Ilmu Perpustakaan (28 Matkul)</option>
                 <option value="PAJAK">S1 Perpajakan (20 Matkul)</option>
+              </select>
+            </div>
+
+            {/* Filter by Semester Select */}
+            <div className="relative">
+              <select
+                value={selectedSemester}
+                onChange={(e) => {
+                  setSelectedSemester(e.target.value)
+                  setPage(1)
+                }}
+                className="w-full sm:w-44 pl-3 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-ut-navy/20 focus:border-ut-navy font-semibold text-slate-700"
+              >
+                <option value="ALL">Semua Semester</option>
+                <option value="GANJIL">Semester Ganjil (1, 3, 5, 7)</option>
+                <option value="GENAP">Semester Genap (2, 4, 6, 8)</option>
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+                <option value="3">Semester 3</option>
+                <option value="4">Semester 4</option>
+                <option value="5">Semester 5</option>
+                <option value="6">Semester 6</option>
+                <option value="7">Semester 7</option>
+                <option value="8">Semester 8</option>
               </select>
             </div>
 
@@ -659,7 +712,15 @@ export default function KebutuhanKelasPage() {
                         {item.kodeMatkul}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-bold text-slate-900 max-w-xs">{item.namaMatkul}</td>
+                    <td className="px-4 py-3 max-w-xs">
+                      <div className="font-bold text-slate-900 leading-tight">{item.namaMatkul}</div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200/60 font-mono text-[10px] font-bold">
+                          Sem {item.semester || (item.kodeMatkul.match(/[A-Z]{3,4}\d(\d)/i)?.[1] || 1)}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium">{item.sks} SKS</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
                         <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 font-extrabold text-[10px]">
@@ -773,9 +834,11 @@ export default function KebutuhanKelasPage() {
                   onChange={(e) => setUploadMasa(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold text-ut-navy focus:outline-none focus:ring-2 focus:ring-ut-navy/20"
                 >
-                  <option value="20262">Masa 2026.2 (Genap)</option>
-                  <option value="20261">Masa 2026.1 (Ganjil)</option>
-                  <option value="20271">Masa 2027.1 (Ganjil)</option>
+                  {MASA_OPTIONS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label} ({m.value})
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -971,11 +1034,22 @@ export default function KebutuhanKelasPage() {
               </p>
 
               <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-700">Target Masa Akademik:</span>
-                  <span className="font-bold text-ut-navy bg-white px-2.5 py-1 rounded-lg border border-slate-200 font-mono">
-                    Masa {selectedMasa}
-                  </span>
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 text-xs block">
+                    Target Masa Registrasi UT:
+                  </label>
+                  <select
+                    value={syncMasa}
+                    onChange={(e) => setSyncMasa(e.target.value)}
+                    disabled={syncingTuton}
+                    className="w-full text-xs font-semibold rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-ut-navy focus:ring-1 focus:ring-ut-navy disabled:opacity-50"
+                  >
+                    {MASA_OPTIONS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label} ({m.value})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-1.5">
@@ -1000,6 +1074,56 @@ export default function KebutuhanKelasPage() {
                     <option value="PAJAK">S1 Perpajakan (FSSP / PAJAK)</option>
                     <option value="SING">S1 Sastra Inggris (FSSI / SING)</option>
                   </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 text-xs block flex items-center justify-between">
+                    <span>Filter Semester Mata Kuliah:</span>
+                    <span className="text-[11px] font-normal text-slate-500">Semester Paket</span>
+                  </label>
+                  <select
+                    value={syncSemester}
+                    onChange={(e) => setSyncSemester(e.target.value)}
+                    disabled={syncingTuton}
+                    className="w-full text-xs font-semibold rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-ut-navy focus:ring-1 focus:ring-ut-navy disabled:opacity-50"
+                  >
+                    <option value="ALL">Semua Semester (Seluruh Matkul)</option>
+                    <option value="GANJIL">Semester Ganjil (1, 3, 5, 7)</option>
+                    <option value="GENAP">Semester Genap (2, 4, 6, 8)</option>
+                    <option value="1">Semester 1</option>
+                    <option value="2">Semester 2</option>
+                    <option value="3">Semester 3</option>
+                    <option value="4">Semester 4</option>
+                    <option value="5">Semester 5</option>
+                    <option value="6">Semester 6</option>
+                    <option value="7">Semester 7</option>
+                    <option value="8">Semester 8</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 text-xs block flex items-center justify-between">
+                    <span>Metode Pengambilan Angka Peserta:</span>
+                    <span className="text-[11px] font-normal text-slate-500 font-mono">DataTables Entry</span>
+                  </label>
+                  <select
+                    value={syncCountMode}
+                    onChange={(e) => setSyncCountMode(e.target.value as any)}
+                    disabled={syncingTuton}
+                    className="w-full text-xs font-semibold rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:border-ut-navy focus:ring-1 focus:ring-ut-navy disabled:opacity-50"
+                  >
+                    <option value="total">
+                      Total Peserta Mata Kuliah — Mengambil total entri (misal: 25.145 dari &apos;filtered from 25,145 total entries&apos;)
+                    </option>
+                    <option value="filtered">
+                      Entri Hasil Saring (Filtered) — Mengambil entri terfilter (misal: 18.336 dari &apos;Showing 1 to 10 of 18,336 entries&apos;)
+                    </option>
+                  </select>
+                  <p className="text-[11px] text-slate-500">
+                    {syncCountMode === 'total'
+                      ? 'Rekomendasi: Mengambil total seluruh peserta registrasi mata kuliah tanpa terpotong filter internal tabel.'
+                      : 'Mengambil jumlah entri spesifik setelah filter query diterapkan pada tabel registrasi.'}
+                  </p>
                 </div>
               </div>
 

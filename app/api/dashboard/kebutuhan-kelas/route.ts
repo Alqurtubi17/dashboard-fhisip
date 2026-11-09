@@ -13,6 +13,7 @@ export type KebutuhanKelasItem = {
   sks: number
   prodiCode: string
   prodiName: string
+  semester?: number
   sipasNonTtm: number
   nonSipas: number
   ttmSipas: number
@@ -28,6 +29,15 @@ export type KebutuhanKelasItem = {
   deltaTutor?: number
 }
 
+function getSemesterFromCourse(kodeMatkul: string): number {
+  const match = kodeMatkul.match(/[A-Z]{3,4}(\d)(\d)/i)
+  if (match && match[2]) {
+    const sem = parseInt(match[2], 10)
+    if (!isNaN(sem) && sem >= 1 && sem <= 8) return sem
+  }
+  return 1
+}
+
 export async function GET(request: Request) {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
@@ -36,6 +46,7 @@ export async function GET(request: Request) {
     const masa = searchParams.get('masa') || '20261'
     const compareMasa = searchParams.get('compareMasa') || ''
     const prodiFilter = searchParams.get('prodi') || 'ALL'
+    const semesterFilter = (searchParams.get('semester') || 'ALL').trim().toUpperCase()
     const query = (searchParams.get('query') || '').toLowerCase().trim()
     const page = parseInt(searchParams.get('page') || '1', 10)
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10)
@@ -99,6 +110,23 @@ export async function GET(request: Request) {
           i.namaMatkul.toLowerCase().includes(query) ||
           i.prodiName.toLowerCase().includes(query)
       )
+    }
+
+    // Attach semester to each item
+    items = items.map((i) => ({
+      ...i,
+      semester: i.semester || getSemesterFromCourse(i.kodeMatkul),
+    }))
+
+    // Semester filter (GANJIL, GENAP, or specific 1-8)
+    if (semesterFilter !== 'ALL') {
+      items = items.filter((item) => {
+        const sem = item.semester || getSemesterFromCourse(item.kodeMatkul)
+        if (semesterFilter === 'GANJIL') return sem % 2 !== 0
+        if (semesterFilter === 'GENAP') return sem % 2 === 0
+        const parsedSem = parseInt(semesterFilter, 10)
+        return !isNaN(parsedSem) ? sem === parsedSem : true
+      })
     }
 
     const totalItems = items.length

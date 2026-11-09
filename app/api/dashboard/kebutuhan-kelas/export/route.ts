@@ -18,11 +18,21 @@ function mapProdiNumericCode(prodiCode: string): string {
   }
 }
 
+function getSemesterFromCourse(kodeMatkul: string): number {
+  const match = kodeMatkul.match(/[A-Z]{3,4}(\d)(\d)/i)
+  if (match && match[2]) {
+    const sem = parseInt(match[2], 10)
+    if (!isNaN(sem) && sem >= 1 && sem <= 8) return sem
+  }
+  return 1
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const masa = searchParams.get('masa') || '20261'
     const prodiFilter = searchParams.get('prodi') || 'ALL'
+    const semesterFilter = (searchParams.get('semester') || 'ALL').trim().toUpperCase()
     const query = (searchParams.get('query') || '').toLowerCase().trim()
 
     let items: any[] = []
@@ -58,16 +68,28 @@ export async function GET(request: Request) {
       )
     }
 
+    if (semesterFilter !== 'ALL') {
+      items = items.filter((item: any) => {
+        const sem = item.semester || getSemesterFromCourse(item.kodeMatkul)
+        if (semesterFilter === 'GANJIL') return sem % 2 !== 0
+        if (semesterFilter === 'GENAP') return sem % 2 === 0
+        const parsedSem = parseInt(semesterFilter, 10)
+        return !isNaN(parsedSem) ? sem === parsedSem : true
+      })
+    }
+
     // Format rows matching exact reference spreadsheet columns
     const exportRows = items.map((item: any) => {
       const pNumCode = mapProdiNumericCode(item.prodiCode || '')
       const concatCode = `458${item.kodeMatkul}`
+      const semNumber = item.semester || getSemesterFromCourse(item.kodeMatkul)
 
       return {
         concat: concatCode,
         singkatan: 'FHISIP',
         kode_program_studi: pNumCode,
         nama_program_studi: item.prodiName,
+        semester: semNumber,
         kode_matakuliah: item.kodeMatkul,
         nama_matakuliah: item.namaMatkul,
         sipas_non_ttm: item.sipasNonTtm || 0,

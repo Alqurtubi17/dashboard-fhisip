@@ -30,6 +30,15 @@ const PRODI_NUMERIC_MAP: Record<string, string> = {
   SING: '316',
 }
 
+function getSemesterFromCourse(kodeMatkul: string): number {
+  const match = kodeMatkul.match(/[A-Z]{3,4}(\d)(\d)/i)
+  if (match && match[2]) {
+    const sem = parseInt(match[2], 10)
+    if (!isNaN(sem) && sem >= 1 && sem <= 8) return sem
+  }
+  return 1
+}
+
 export async function POST(req: Request) {
   let browser: any = null
 
@@ -153,6 +162,18 @@ export async function POST(req: Request) {
           })
         }
 
+        // Apply Semester filter if specified
+        const semesterFilter = String(body.semester || 'ALL').trim().toUpperCase()
+        if (semesterFilter !== 'ALL') {
+          matkulList = matkulList.filter((m) => {
+            const sem = getSemesterFromCourse(m.kodeMatkul)
+            if (semesterFilter === 'GANJIL') return sem % 2 !== 0
+            if (semesterFilter === 'GENAP') return sem % 2 === 0
+            const parsedSem = parseInt(semesterFilter, 10)
+            return !isNaN(parsedSem) ? sem === parsedSem : true
+          })
+        }
+
         send({
           type: 'progress',
           current: 0,
@@ -262,55 +283,89 @@ export async function POST(req: Request) {
             // Wait 1.5 seconds for initial search results
             await new Promise((r) => setTimeout(r, 1500))
 
-            // Step: Search DataTables by Prodi Code if search input is available
+            // Step: Search DataTables by Prodi Code or Semester only if explicitly requested
+            const countMode = String(body.countMode || 'total').trim().toLowerCase()
+            const shouldFilterTable = Boolean(body.applyProdiFilter || body.prodiSearch || countMode === 'filtered')
             const prefix4 = item.kodeMatkul.trim().substring(0, 4).toUpperCase()
             const prodiQuery = (body.prodiSearch || PRODI_NUMERIC_MAP[prefix4] || PRODI_NUMERIC_MAP[item.prodiCode.toUpperCase()] || item.prodiCode).trim()
             
-            try {
-              const dtSearchInput = await page.$('input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input')
-              if (dtSearchInput && prodiQuery) {
-                await page.evaluate((pq: string) => {
-                  const input = document.querySelector('input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input') as HTMLInputElement | null
-                  if (input) {
-                    input.value = pq
-                    input.dispatchEvent(new Event('input', { bubbles: true }))
-                    input.dispatchEvent(new Event('keyup', { bubbles: true }))
-                    input.dispatchEvent(new Event('change', { bubbles: true }))
-                  }
-                }, prodiQuery)
+            if (shouldFilterTable && prodiQuery) {
+              try {
+                const dtSearchInput = await page.$('input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input')
+                if (dtSearchInput) {
+                  await page.evaluate((pq: string) => {
+                    const input = document.querySelector('input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input') as HTMLInputElement | null
+                    if (input) {
+                      input.value = pq
+                      input.dispatchEvent(new Event('input', { bubbles: true }))
+                      input.dispatchEvent(new Event('keyup', { bubbles: true }))
+                      input.dispatchEvent(new Event('change', { bubbles: true }))
+                    }
+                  }, prodiQuery)
 
-                await dtSearchInput.click()
-                await page.keyboard.down('Control')
-                await page.keyboard.press('A')
-                await page.keyboard.up('Control')
-                await page.keyboard.press('Backspace')
-                await dtSearchInput.type(prodiQuery)
-                await page.keyboard.press('Enter')
-                await page.evaluate((pq: string) => {
-                  const input = document.querySelector('input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input') as HTMLInputElement | null
-                  if (input) {
-                    input.dispatchEvent(new Event('input', { bubbles: true }))
-                    input.dispatchEvent(new Event('keyup', { bubbles: true }))
-                    input.dispatchEvent(new Event('change', { bubbles: true }))
-                  }
-                }, prodiQuery)
-                await new Promise((r) => setTimeout(r, 2000))
-              }
-            } catch {}
+                  await dtSearchInput.click()
+                  await page.keyboard.down('Control')
+                  await page.keyboard.press('A')
+                  await page.keyboard.up('Control')
+                  await page.keyboard.press('Backspace')
+                  await dtSearchInput.type(prodiQuery)
+                  await page.keyboard.press('Enter')
+                  await page.evaluate((pq: string) => {
+                    const input = document.querySelector('input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input') as HTMLInputElement | null
+                    if (input) {
+                      input.dispatchEvent(new Event('input', { bubbles: true }))
+                      input.dispatchEvent(new Event('keyup', { bubbles: true }))
+                      input.dispatchEvent(new Event('change', { bubbles: true }))
+                    }
+                  }, prodiQuery)
+                  await new Promise((r) => setTimeout(r, 2000))
+                }
+              } catch {}
+            }
 
-            // Parse filtered DataTables entries count (e.g. Showing 1 to 10 of 18,405 entries)
-            const resData = await page.evaluate(() => {
+            // Parse DataTables entries count:
+            // Handles both "Showing 1 to 10 of 18,336 entries (filtered from 25,145 total entries)"
+            // and Indonesian "Menampilkan 1 sampai 10 dari 18.336 entri (disaring dari 25.145 total entri)"
+            // as well as plain unfiltered "Showing 1 to 10 of 25,145 entries"
+            const resData = await page.evaluate((mode: string) => {
               const info = document.querySelector('#mytable4_info, .dataTables_info')
               if (info && info.textContent) {
-                const match = info.textContent.match(/of\s+([\d,.]+)\s+entries/i)
-                if (match && match[1]) {
-                  const rawCount = match[1].replace(/[,.\s]/g, '')
-                  const parsed = parseInt(rawCount, 10)
-                  return !isNaN(parsed) ? parsed : null
+                const text = info.textContent
+
+                // 1. Total entries (e.g. "... filtered from 25,145 total entries" or "... disaring dari 25.145 total entri")
+                let totalCount: number | null = null
+                const totalMatch = text.match(/(?:filtered\s+from|disaring\s+dari)\s+([\d,.]+)\s+(?:total\s+entries|total\s+entri)/i)
+                if (totalMatch && totalMatch[1]) {
+                  totalCount = parseInt(totalMatch[1].replace(/[,.\s]/g, ''), 10)
                 }
+
+                // 2. Filtered entries (e.g. "of 18,336 entries" or "dari 18.336 entri")
+                let filteredCount: number | null = null
+                const filteredMatch = text.match(/(?:of|dari)\s+([\d,.]+)\s+(?:entries|entri)/i)
+                if (filteredMatch && filteredMatch[1]) {
+                  filteredCount = parseInt(filteredMatch[1].replace(/[,.\s]/g, ''), 10)
+                }
+
+                // If not filtered, "of X entries" is itself the total count
+                if (totalCount === null && filteredCount !== null) {
+                  totalCount = filteredCount
+                }
+
+                // User requested total count (e.g. 25,145)
+                if (mode === 'total') {
+                  return totalCount !== null ? totalCount : filteredCount
+                }
+
+                // User requested filtered count (e.g. 18,336)
+                if (mode === 'filtered') {
+                  return filteredCount !== null ? filteredCount : totalCount
+                }
+
+                // Default: use total count so real student enrollment is not truncated
+                return totalCount !== null ? totalCount : filteredCount
               }
               return null
-            })
+            }, countMode)
 
             if (resData !== null) {
               totalTuton = resData
