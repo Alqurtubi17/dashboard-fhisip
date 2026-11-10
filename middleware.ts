@@ -103,7 +103,17 @@ export async function middleware(req: NextRequest) {
   }
 
   // Student Portal Load Balancer, Protection & Routing
-  if (pathname.startsWith('/portal-mahasiswa') || pathname.startsWith('/api/mahasiswa')) {
+  // Only target student portal paths and student-specific APIs (NOT admin dashboard /api/mahasiswa or /api/mahasiswa/sync)
+  const isStudentPortalRoute =
+    pathname.startsWith('/portal-mahasiswa') ||
+    pathname.startsWith('/api/mahasiswa/auth') ||
+    pathname.startsWith('/api/mahasiswa/mata-kuliah') ||
+    pathname.startsWith('/api/mahasiswa/me') ||
+    pathname.startsWith('/api/mahasiswa/password') ||
+    pathname.startsWith('/api/mahasiswa/pengguguran') ||
+    pathname === '/api/mahasiswa/load-balancer'
+
+  if (isStudentPortalRoute) {
     // 1. Cluster overload / concurrency threshold check
     if (studentLoadBalancer.isClusterOverloaded()) {
       const res = NextResponse.json(

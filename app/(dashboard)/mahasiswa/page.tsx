@@ -72,12 +72,12 @@ export default function MahasiswaPage() {
     belumReg: number
     adm: number
   }>({
-    total: 392064,
-    aktif: 15974,
-    nonAktif: 218232,
-    alumni: 74822,
-    belumReg: 36143,
-    adm: 26893,
+    total: 1000156,
+    aktif: 372744,
+    nonAktif: 292822,
+    alumni: 195470,
+    belumReg: 79167,
+    adm: 59953,
   })
 
   // Auth User state
@@ -471,7 +471,7 @@ export default function MahasiswaPage() {
   }, [selectedProdi])
 
   // Total student baseline for card percentages
-  const grandTotal = categoryStats.total || totalCount || 392064
+  const grandTotal = categoryStats.total || totalCount || 1000156
 
   return (
     <div className="space-y-6">
