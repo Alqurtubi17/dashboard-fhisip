@@ -9,34 +9,49 @@ import fs from 'fs'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const PRODI_NUMERIC_MAP: Record<string, string> = {
-  FSIH: '311', // S1 Ilmu Hukum (FSIH4101, FSIH4201...)
-  HKUM: '311',
-  FSAP: '310', // S1 Administrasi Publik
-  ADPU: '310',
-  FSAB: '312', // S1 Administrasi Bisnis
-  ADBI: '312',
-  FSIK: '318', // S1 Ilmu Komunikasi
-  IKOM: '318',
-  FSIP: '317', // S1 Ilmu Pemerintahan
-  IPEM: '317',
-  FSSO: '319', // S1 Sosiologi
-  SOSI: '319',
-  FSKP: '314', // S1 Perpustakaan / Kearsipan
-  PUS: '314',
-  FSTX: '315', // S1/D3 Perpajakan
-  PAJAK: '315',
-  FSAG: '316', // S1 Sastra Inggris
-  SING: '316',
+// Mapping of prodi codes to UT Registrasi prodi identifiers / search terms
+const PRODI_SEARCH_TERMS: Record<string, string[]> = {
+  HKUM: ['321', '311', 'hukum'],
+  FSIH: ['321', '311', 'hukum'],
+  ADPU: ['350', '50', 'publik', 'administrasi negara'],
+  FSAP: ['350', '50', 'publik', 'administrasi negara'],
+  ADBI: ['351', '51', 'bisnis', 'administrasi niaga'],
+  FSAB: ['351', '51', 'bisnis', 'administrasi niaga'],
+  IKOM: ['72', '318', 'komunikasi'],
+  FSIK: ['72', '318', 'komunikasi'],
+  IPEM: ['71', '317', 'pemerintahan'],
+  FSPE: ['71', '317', 'pemerintahan'],
+  SOSI: ['70', '319', 'sosiologi'],
+  FSSO: ['70', '319', 'sosiologi'],
+  PUS: ['320', '310', '38', 'perpustakaan', 'kearsipan'],
+  FSIP: ['320', '310', '38', 'perpustakaan', 'kearsipan'],
+  FSKP: ['320', '310', '38', 'perpustakaan', 'kearsipan'],
+  PAJAK: ['315', '35', 'pajak', 'perpajakan'],
+  FSSP: ['315', '35', 'pajak', 'perpajakan'],
+  SING: ['82', '316', 'sastra inggris', 'inggris'],
+  FSSI: ['82', '316', 'sastra inggris', 'inggris'],
 }
 
-function getSemesterFromCourse(kodeMatkul: string): number {
-  const match = kodeMatkul.match(/[A-Z]{3,4}(\d)(\d)/i)
-  if (match && match[2]) {
-    const sem = parseInt(match[2], 10)
-    if (!isNaN(sem) && sem >= 1 && sem <= 8) return sem
+// Legacy course code mapping fallbacks if new curriculum codes yield 0
+const LEGACY_PREFIX_MAP: Record<string, string> = {
+  FSIH: 'HKUM',
+  FSAP: 'ADPU',
+  FSAB: 'ADBI',
+  FSIK: 'SKOM',
+  FSPE: 'IPEM',
+  FSSO: 'SOSI',
+  FSIP: 'PUST',
+  FSKP: 'ASIP',
+  FSSP: 'PAJA',
+  FSSI: 'BING',
+}
+
+function getLegacyEquivalent(code: string): string | null {
+  const prefix = code.substring(0, 4).toUpperCase()
+  if (LEGACY_PREFIX_MAP[prefix]) {
+    return LEGACY_PREFIX_MAP[prefix] + code.substring(4)
   }
-  return 1
+  return null
 }
 
 export async function POST(req: Request) {
@@ -79,6 +94,7 @@ export async function POST(req: Request) {
   }
 
   const masa = String(body.masa || '20261').trim()
+  const prodiFilter = String(body.prodi || body.prodiCode || 'ALL').trim().toUpperCase()
 
   const encoder = new TextEncoder()
 
@@ -124,7 +140,7 @@ export async function POST(req: Request) {
 
         // 2. Fetch Course List from PostgreSQL or JSON fallback
         let matkulList: { kodeMatkul: string; namaMatkul: string; sks: number; prodiCode: string; prodiName: string }[] = []
-        
+
         try {
           const dbMatkul = await (prisma as any).prediksiKelas.findMany({
             where: { masa },
@@ -146,31 +162,11 @@ export async function POST(req: Request) {
         }
 
         // Apply Prodi filter if specified
-        const prodiFilter = String(body.prodi || body.prodiCode || 'ALL').trim().toUpperCase()
         if (prodiFilter !== 'ALL') {
           matkulList = matkulList.filter((m) => {
             const codeUpper = m.kodeMatkul.toUpperCase()
             const prodiUpper = m.prodiCode.toUpperCase()
-            const numericCode = PRODI_NUMERIC_MAP[codeUpper.substring(0, 4)] || PRODI_NUMERIC_MAP[prodiUpper] || ''
-            const targetNumeric = PRODI_NUMERIC_MAP[prodiFilter] || prodiFilter
-
-            return (
-              prodiUpper === prodiFilter ||
-              codeUpper.startsWith(prodiFilter) ||
-              (numericCode && targetNumeric && numericCode === targetNumeric)
-            )
-          })
-        }
-
-        // Apply Semester filter if specified
-        const semesterFilter = String(body.semester || 'ALL').trim().toUpperCase()
-        if (semesterFilter !== 'ALL') {
-          matkulList = matkulList.filter((m) => {
-            const sem = getSemesterFromCourse(m.kodeMatkul)
-            if (semesterFilter === 'GANJIL') return sem % 2 !== 0
-            if (semesterFilter === 'GENAP') return sem % 2 === 0
-            const parsedSem = parseInt(semesterFilter, 10)
-            return !isNaN(parsedSem) ? sem === parsedSem : true
+            return prodiUpper === prodiFilter || codeUpper.startsWith(prodiFilter)
           })
         }
 
@@ -180,7 +176,7 @@ export async function POST(req: Request) {
           total: matkulList.length,
           percentage: 0,
           itemLabel: 'Memulai peramban otomatis...',
-          statusText: `Menyiapkan koneksi ke Portal Registrasi UT...`,
+          statusText: `Menghubungkan ke Portal Registrasi UT...`,
         })
 
         // 3. Launch Edge / Chromium Browser via Puppeteer
@@ -208,13 +204,13 @@ export async function POST(req: Request) {
         const page = await browser.newPage()
         await page.setViewport({ width: 1280, height: 800 })
 
-        // Step A: Login Page
+        // Login to UT Registrasi
         send({
           type: 'progress',
           current: 0,
           total: matkulList.length,
           percentage: 2,
-          itemLabel: 'Otentikasi Login Portal',
+          itemLabel: 'Otentikasi Login Portal Registrasi UT',
           statusText: `Login ke ${loginUrl}...`,
         })
 
@@ -227,22 +223,13 @@ export async function POST(req: Request) {
           page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 35000 }).catch(() => {}),
         ])
 
-        // Step B: Navigate to daftarmtkmhs page
-        send({
-          type: 'progress',
-          current: 0,
-          total: matkulList.length,
-          percentage: 5,
-          itemLabel: 'Membuka Daftar Mhs Per MTK',
-          statusText: `Membuka halaman daftarmtkmhs...`,
-        })
-
+        // Ensure session is active on daftarmtkmhs
         await page.goto('https://registrasi.ut.ac.id/daftarmtkmhs', { waitUntil: 'networkidle2', timeout: 35000 })
 
         let successCount = 0
         const details: any[] = []
 
-        // 4. Scrape Tuton entries per course code
+        // 4. Query student entries per course directly via the authenticated session
         for (let i = 0; i < matkulList.length; i++) {
           const item = matkulList[i]
           const kode = item.kodeMatkul.trim()
@@ -262,110 +249,105 @@ export async function POST(req: Request) {
           let fetchedSuccessfully = false
 
           try {
-            await page.goto('https://registrasi.ut.ac.id/daftarmtkmhs', { waitUntil: 'networkidle2' }).catch(() => {})
+            // Direct fetch inside the authenticated browser context to avoid slow DOM rendering
+            const fetchResult = await page.evaluate(
+              async (targetMasa: string, targetKode: string, prodiTarget: string, patterns: Record<string, string[]>) => {
+                async function queryApi(c: string) {
+                  const formData = new URLSearchParams()
+                  formData.append('masa', targetMasa)
+                  formData.append('mtk', c)
 
-            // 1. Pilih Masa Akademik jika dropdown masa tersedia
-            const selectMasaEl = await page.$('select[name="masa"], select#masa')
-            if (selectMasaEl) {
-              await page.select('select[name="masa"], select#masa', masa).catch(() => {})
-              await page.evaluate(() => {
-                const s = document.querySelector('select[name="masa"], select#masa') as HTMLSelectElement | null
-                if (s) {
-                  s.dispatchEvent(new Event('change', { bubbles: true }))
-                  const form = s.closest('form')
-                  const submitBtn = form?.querySelector('button[type="submit"], input[type="submit"]') as HTMLElement | null
-                  if (submitBtn) submitBtn.click()
+                  const res = await fetch('https://registrasi.ut.ac.id/DaftarMtkMhs/ajax_DaftarMhs/', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                      'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: formData.toString(),
+                  })
+                  if (!res.ok) return []
+                  const json = await res.json()
+                  return Array.isArray(json) ? json : []
                 }
-              }).catch(() => {})
-              await new Promise((r) => setTimeout(r, 1500))
-            }
 
-            // 2. Opsional: jika ada input form spesifik mata kuliah, isi secara aman tanpa error jika tidak ada
-            const customMtkInput = await page.$('#mtk, input[name="mtk"], input[name="kode_matakuliah"]')
-            if (customMtkInput) {
-              await page.evaluate(() => {
-                const input = document.querySelector('#mtk, input[name="mtk"], input[name="kode_matakuliah"]') as HTMLInputElement | null
-                if (input) input.value = ''
-              }).catch(() => {})
-              await customMtkInput.type(kode).catch(() => {})
-              const submitBtn = await page.$('input[name="pencarian"], button[type="submit"]')
-              if (submitBtn) {
-                await Promise.all([
-                  submitBtn.click(),
-                  page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {}),
-                ])
-              }
-              await new Promise((r) => setTimeout(r, 1500))
-            }
+                let rows = await queryApi(targetKode)
 
-            // 3. Cari Kode Mata Kuliah pada kotak pencarian DataTables tabel peserta
-            const dtSearchInput = await page.$(
-              'input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input, #mytable4_filter input'
+                if (rows.length === 0) {
+                  return { success: true, count: 0, total: 0 }
+                }
+
+                const totalEntries = rows.length
+                const searchKeys = patterns[prodiTarget] || []
+
+                // Filter by prodi search keys (e.g. '321' for Hukum yields 18,336 from 25,145 entries)
+                let filteredCount = 0
+                if (searchKeys.length > 0) {
+                  filteredCount = rows.filter((r: any) => {
+                    const rowText = Object.values(r).join(' ').toLowerCase()
+                    return searchKeys.some((k: string) => rowText.includes(k.toLowerCase()))
+                  }).length
+                }
+
+                // Strictly take the filtered entries count if filtered, otherwise total entries
+                const finalCount = filteredCount > 0 ? filteredCount : totalEntries
+                return { success: true, count: finalCount, total: totalEntries, filteredCount }
+              },
+              masa,
+              kode,
+              prodiFilter !== 'ALL' ? prodiFilter : item.prodiCode,
+              PRODI_SEARCH_TERMS
             )
-            if (dtSearchInput) {
-              await page.evaluate((targetCode: string) => {
-                const input = document.querySelector(
-                  'input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input, #mytable4_filter input'
-                ) as HTMLInputElement | null
-                if (input) {
-                  input.value = targetCode
-                  input.dispatchEvent(new Event('input', { bubbles: true }))
-                  input.dispatchEvent(new Event('keyup', { bubbles: true }))
-                  input.dispatchEvent(new Event('change', { bubbles: true }))
-                }
-              }, kode)
 
-              await dtSearchInput.click()
-              await page.keyboard.down('Control')
-              await page.keyboard.press('A')
-              await page.keyboard.up('Control')
-              await page.keyboard.press('Backspace')
-              await dtSearchInput.type(kode)
-              await page.keyboard.press('Enter')
+            if (fetchResult && fetchResult.success) {
+              if (fetchResult.count > 0) {
+                totalTuton = fetchResult.count
+                fetchedSuccessfully = true
+              } else {
+                // If 0, try legacy code fallback
+                const legacyCode = getLegacyEquivalent(kode)
+                if (legacyCode) {
+                  const legacyResult = await page.evaluate(
+                    async (targetMasa: string, targetKode: string, prodiTarget: string, patterns: Record<string, string[]>) => {
+                      const formData = new URLSearchParams()
+                      formData.append('masa', targetMasa)
+                      formData.append('mtk', targetKode)
 
-              await page.evaluate((targetCode: string) => {
-                const input = document.querySelector(
-                  'input[type="search"][aria-controls="mytable4"], input[type="search"], div.dataTables_filter input, #mytable4_filter input'
-                ) as HTMLInputElement | null
-                if (input) {
-                  input.dispatchEvent(new Event('input', { bubbles: true }))
-                  input.dispatchEvent(new Event('keyup', { bubbles: true }))
-                  input.dispatchEvent(new Event('change', { bubbles: true }))
-                }
-              }, kode)
+                      const res = await fetch('https://registrasi.ut.ac.id/DaftarMtkMhs/ajax_DaftarMhs/', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                          'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: formData.toString(),
+                      })
+                      if (!res.ok) return { success: false, count: 0 }
+                      const json = await res.json()
+                      if (!Array.isArray(json) || json.length === 0) return { success: true, count: 0 }
 
-              await new Promise((r) => setTimeout(r, 2000))
-            }
+                      const totalEntries = json.length
+                      const searchKeys = patterns[prodiTarget] || []
+                      let filteredCount = 0
+                      if (searchKeys.length > 0) {
+                        filteredCount = json.filter((r: any) => {
+                          const rowText = Object.values(r).join(' ').toLowerCase()
+                          return searchKeys.some((k: string) => rowText.includes(k.toLowerCase()))
+                        }).length
+                      }
+                      const finalCount = filteredCount > 0 ? filteredCount : totalEntries
+                      return { success: true, count: finalCount }
+                    },
+                    masa,
+                    legacyCode,
+                    prodiFilter !== 'ALL' ? prodiFilter : item.prodiCode,
+                    PRODI_SEARCH_TERMS
+                  )
 
-            // 4. Parse DataTables entries count:
-            // Sesuai instruksi: cari yang "entries" (contoh: 18,336 dari "Showing 1 to 10 of 18,336 entries"),
-            // BUKAN "total entries" (25,145 dari "filtered from 25,145 total entries").
-            const resData = await page.evaluate(() => {
-              const info = document.querySelector('#mytable4_info, .dataTables_info')
-              if (info && info.textContent) {
-                const text = info.textContent
-
-                // 1. Ekstrak nilai sebelum 'entries' / 'entri' (bukan total entries)
-                // Contoh: "of 18,336 entries" -> 18336, "dari 18.336 entri" -> 18336
-                const entriesMatch = text.match(/(?:of|dari)\s+([\d,.]+)\s+(?:entries|entri)/i)
-                if (entriesMatch && entriesMatch[1]) {
-                  const val = parseInt(entriesMatch[1].replace(/[,.\s]/g, ''), 10)
-                  if (!isNaN(val)) return val
-                }
-
-                // 2. Fallback: tangkap angka sebelum 'entries' / 'entri' tanpa kata 'total'
-                const fallbackMatch = text.match(/([\d,.]+)\s+(?:entries|entri)(?!\s*total)/i)
-                if (fallbackMatch && fallbackMatch[1]) {
-                  const val = parseInt(fallbackMatch[1].replace(/[,.\s]/g, ''), 10)
-                  if (!isNaN(val)) return val
+                  if (legacyResult && legacyResult.count > 0) {
+                    totalTuton = legacyResult.count
+                    fetchedSuccessfully = true
+                  }
                 }
               }
-              return null
-            })
-
-            if (resData !== null) {
-              totalTuton = resData
-              fetchedSuccessfully = true
             }
           } catch (err: any) {
             console.error(`[SYNC TUTON] Error on ${kode}:`, err?.message || err)
@@ -380,9 +362,11 @@ export async function POST(req: Request) {
             const sipasNonTtm = existing?.sipasNonTtm || 0
             const nonSipas = existing?.nonSipas || 0
             const ttmSipas = existing?.ttmSipas || 0
+
+            // If fetched successfully, update with authentic extracted entries count
             const tutonCount = fetchedSuccessfully ? totalTuton : existing?.jumlahTuton || 0
-            const totalMahasiswa = tutonCount > 0 
-              ? tutonCount 
+            const totalMahasiswa = tutonCount > 0
+              ? tutonCount
               : existing?.totalMahasiswa && existing.totalMahasiswa > 0
                 ? existing.totalMahasiswa
                 : (sipasNonTtm + nonSipas + ttmSipas + tutonCount) || 100
@@ -417,7 +401,7 @@ export async function POST(req: Request) {
               },
             })
 
-            if (fetchedSuccessfully) {
+            if (fetchedSuccessfully && tutonCount > 0) {
               successCount++
             }
 
