@@ -140,13 +140,6 @@ export default function StudentPortalLayout({ children }: { children: React.Reac
 
           {/* User Profile & Logout */}
           <div className="hidden md:flex items-center gap-2">
-            <div
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium"
-              title="Terhubung ke Cluster Gateway High-Availability FHISIP"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Cluster Active</span>
-            </div>
             {student && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10">
                 <div className="w-6 h-6 rounded-lg bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center shadow-sm">
@@ -224,10 +217,6 @@ export default function StudentPortalLayout({ children }: { children: React.Reac
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
         <p className="font-semibold text-slate-700">Fakultas Hukum, Ilmu Sosial, dan Ilmu Politik (FHISIP)</p>
         <p className="mt-0.5">Universitas Terbuka © {new Date().getFullYear()} — Portal Layanan Akademik Mahasiswa</p>
-        <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] text-slate-600">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-          <span>Load Balancer Terdistribusi Aktif</span>
-        </div>
       </footer>
     </div>
   )
