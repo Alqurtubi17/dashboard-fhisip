@@ -117,12 +117,35 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Validasi Mata Kuliah di Database Resmi
-    const course = await prisma.mataKuliah.findUnique({
-      where: { kodeMatkul: String(kodeMatkul).trim().toUpperCase() },
+    const rawKode = String(kodeMatkul).trim().toUpperCase()
+    const primaryKode = rawKode.split('(')[0].trim()
+
+    let course = await prisma.mataKuliah.findFirst({
+      where: {
+        OR: [
+          { kodeMatkul: rawKode },
+          { kodeMatkul: primaryKode },
+        ],
+      },
     })
 
-    if (!course || !course.isActive) {
-      return NextResponse.json({ error: 'Mata kuliah tidak ditemukan dalam kurikulum resmi aktif.' }, { status: 400 })
+    if (!course) {
+      // Auto-upsert mata kuliah transkrip jika belum tersimpan
+      course = await prisma.mataKuliah.create({
+        data: {
+          kodeMatkul: primaryKode,
+          namaMatkul: body.namaMatkul || primaryKode,
+          sks: parseInt(body.sks || '3', 10) || 3,
+          prodiCode: student.prodiCode || 'FSAP',
+          prodiName: student.prodi || 'FHISIP',
+          kategori: 'NON_INTI',
+          isActive: true,
+        },
+      })
+    }
+
+    if (!course.isActive) {
+      return NextResponse.json({ error: 'Mata kuliah sedang tidak aktif.' }, { status: 400 })
     }
 
     // 3. Validasi Utama: Kategori Inti vs Non-Inti

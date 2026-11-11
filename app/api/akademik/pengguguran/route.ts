@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Validasi setiap mata kuliah (kategori NON_INTI & harus berawalan FS)
+    // Validasi setiap mata kuliah (kategori NON_INTI)
     for (const mk of targetCourses) {
       if (!mk.isActive) {
         return NextResponse.json({ error: `Mata kuliah ${mk.kodeMatkul} sedang tidak aktif.` }, { status: 400 })
@@ -238,14 +238,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             error: `Mata kuliah ${mk.kodeMatkul} - ${mk.namaMatkul} termasuk kategori Mata Kuliah Inti dan tidak dapat digugurkan.`,
-          },
-          { status: 400 }
-        )
-      }
-      if (!mk.kodeMatkul.toUpperCase().startsWith('FS')) {
-        return NextResponse.json(
-          {
-            error: `Mata kuliah ${mk.kodeMatkul} bukan merupakan mata kuliah kurikulum resmi FHISIP yang memenuhi syarat pengguguran.`,
           },
           { status: 400 }
         )

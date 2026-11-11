@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { verifyAccessToken, ACCESS_COOKIE } from '@/lib/auth'
 import { resolveProdiInfo } from '@/lib/prodi-codes'
+import { AcademicApiService } from '@/lib/academic-api'
 
 async function getCurrentUser(req: Request) {
   let userId = req.headers.get('x-user-id')
@@ -88,28 +89,33 @@ export async function GET(req: NextRequest) {
         })
       : []
 
-    // Ambil daftar mata kuliah NON-INTI resmi yang berawalan FS untuk prodi ini
-    const prodiFilterList = prodiInfo
-      ? [prodiInfo.officialCode, prodiInfo.legacyCode, ...prodiInfo.srsCodes]
-      : []
-
-    const eligibleCourses = await prisma.mataKuliah.findMany({
-      where: {
-        isActive: true,
-        kategori: 'NON_INTI',
-        kodeMatkul: { startsWith: 'FS', mode: 'insensitive' },
-        ...(prodiInfo
-          ? {
-              OR: [
-                { prodiCode: { in: prodiFilterList } },
-                { kodeMatkul: { startsWith: prodiInfo.officialCode, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: { kodeMatkul: 'asc' },
-      take: 150,
+    // Ambil daftar mata kuliah langsung dari API LKAM cetak-transkrip-sementara [UO_Z4X_MS_ZDE]
+    const courseApiResult = await AcademicApiService.getStudentCourses({
+      nim: student.nim,
+      prodiCode: officialProdiCode,
+      kurikulum: student.kurikulum || '2024',
     })
+
+    const appliedSet = new Set(activeSubmissions.map((s) => s.kodeMatkul.toUpperCase()))
+
+    // Format data mata kuliah sesuai transkrip mahasiswa
+    const eligibleCourses = courseApiResult.data.map((c) => ({
+      id: c.id || `mk-${c.primary_kode || c.kode_mk}`,
+      kodeMatkul: c.kode_mk,
+      primaryKode: c.primary_kode || c.kode_mk,
+      namaMatkul: c.nama_mk,
+      sks: c.sks,
+      prodiCode: officialProdiCode,
+      prodiName: officialProdiName,
+      kategori: c.kategori_mk,
+      canDrop: c.canDrop,
+      grade: c.grade || '-',
+      masa: c.masa || '-',
+      kelompok: c.kelompok,
+      alreadyApplied:
+        appliedSet.has(c.kode_mk.toUpperCase()) ||
+        appliedSet.has((c.primary_kode || '').toUpperCase()),
+    }))
 
     return NextResponse.json({
       success: true,

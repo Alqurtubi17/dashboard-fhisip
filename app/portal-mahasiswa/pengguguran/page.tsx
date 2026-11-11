@@ -283,6 +283,7 @@ export default function StudentPengguguranPage() {
                   <th className="px-4 py-3.5">Kode MK</th>
                   <th className="px-4 py-3.5">Nama Mata Kuliah</th>
                   <th className="px-4 py-3.5">SKS</th>
+                  <th className="px-4 py-3.5">Nilai & Masa</th>
                   <th className="px-4 py-3.5">Kategori</th>
                   <th className="px-4 py-3.5">Status Kelayakan</th>
                   <th className="px-4 py-3.5 text-center">Tindakan</th>
@@ -302,6 +303,14 @@ export default function StudentPengguguranPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3.5 font-semibold text-slate-600">{c.sks} SKS</td>
+                      <td className="px-4 py-3.5">
+                        <div className="font-bold text-slate-800">
+                          {c.grade && c.grade !== '-' ? `Nilai: ${c.grade}` : '-'}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          {c.masa && c.masa !== '-' ? `Masa ${c.masa}` : ''}
+                        </div>
+                      </td>
                       <td className="px-4 py-3.5">
                         {isInti ? (
                           <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
@@ -452,7 +461,17 @@ export default function StudentPengguguranPage() {
                   {selectedCourse.kode_mk} - {selectedCourse.nama_mk}
                 </div>
                 <div className="text-slate-600">
-                  Bobot: <strong>{selectedCourse.sks} SKS</strong> • Kurikulum: {selectedCourse.kurikulum}
+                  Bobot: <strong>{selectedCourse.sks} SKS</strong>
+                  {selectedCourse.grade && selectedCourse.grade !== '-' && (
+                    <> • Nilai: <strong className="text-slate-900 font-mono">{selectedCourse.grade}</strong></>
+                  )}
+                  {selectedCourse.masa && selectedCourse.masa !== '-' && (
+                    <> • Masa: <strong className="text-slate-900 font-mono">{selectedCourse.masa}</strong></>
+                  )}
+                  {selectedCourse.kelompok && (
+                    <> • Kelompok: <strong className="text-slate-900">{selectedCourse.kelompok}</strong></>
+                  )}
+                  {" "}• Kurikulum: {selectedCourse.kurikulum}
                 </div>
               </div>
 

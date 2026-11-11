@@ -106,6 +106,11 @@ type MataKuliahItem = {
   prodiCode: string
   prodiName: string
   kategori: 'INTI' | 'NON_INTI'
+  grade?: string
+  masa?: string
+  canDrop?: boolean
+  kelompok?: string
+  alreadyApplied?: boolean
 }
 
 export default function PengguguranMataKuliahPage() {
@@ -1569,7 +1574,6 @@ export default function PengguguranMataKuliahPage() {
                   {/* Course Suggestions Checklist */}
                   <div className="border border-slate-200 rounded-xl max-h-48 overflow-y-auto divide-y divide-slate-100 bg-white">
                     {mataKuliahList.filter((c) => {
-                      if (!c.kodeMatkul.toUpperCase().startsWith('FS')) return false
                       if (!courseSearch.trim()) return true
                       const q = courseSearch.toLowerCase()
                       return c.kodeMatkul.toLowerCase().includes(q) || c.namaMatkul.toLowerCase().includes(q)
@@ -1580,7 +1584,6 @@ export default function PengguguranMataKuliahPage() {
                     ) : (
                       mataKuliahList
                         .filter((c) => {
-                          if (!c.kodeMatkul.toUpperCase().startsWith('FS')) return false
                           if (!courseSearch.trim()) return true
                           const q = courseSearch.toLowerCase()
                           return c.kodeMatkul.toLowerCase().includes(q) || c.namaMatkul.toLowerCase().includes(q)
@@ -1615,7 +1618,11 @@ export default function PengguguranMataKuliahPage() {
                                   <span className="font-bold text-slate-900 font-mono">{c.kodeMatkul}</span> &ndash;{' '}
                                   <span className="text-slate-700">{c.namaMatkul}</span>
                                   <span className="text-[10px] text-slate-400 block">
-                                    {c.sks} SKS &bull; {getProdiNameByCode(c.prodiCode)}
+                                    {c.sks} SKS
+                                    {c.grade && c.grade !== '-' ? ` • Nilai: ${c.grade}` : ''}
+                                    {c.masa && c.masa !== '-' ? ` • Masa: ${c.masa}` : ''}
+                                    {c.kelompok ? ` • Kelompok: ${c.kelompok}` : ''}
+                                    {' '}&bull; {getProdiNameByCode(c.prodiCode)}
                                   </span>
                                 </div>
                               </div>
