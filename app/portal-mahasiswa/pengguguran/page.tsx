@@ -81,7 +81,7 @@ export default function StudentPengguguranPage() {
     try {
       setLoading(true)
       const [courseRes, meRes] = await Promise.all([
-        fetch('/api/mahasiswa/mata-kuliah').then((r) => r.json()),
+        fetch('/api/mahasiswa/mata-kuliah?refresh=true').then((r) => r.json()),
         fetch('/api/mahasiswa/me').then((r) => r.json()),
       ])
 
@@ -305,10 +305,26 @@ export default function StudentPengguguranPage() {
                       <td className="px-4 py-3.5 font-semibold text-slate-600">{c.sks} SKS</td>
                       <td className="px-4 py-3.5">
                         <div className="font-bold text-slate-800">
-                          {c.grade && c.grade !== '-' ? `Nilai: ${c.grade}` : '-'}
+                          {c.grade && c.grade !== '-' && c.grade !== 'BL' ? (
+                            <span className="inline-flex items-center gap-1 font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-[11px]">
+                              Nilai: {c.grade}
+                            </span>
+                          ) : c.grade === 'BL' ? (
+                            <span className="inline-flex items-center gap-1 font-mono text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md text-[11px]">
+                              BL (Belum Ada Nilai)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 font-mono text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md text-[11px]">
+                              Belum Ada Nilai
+                            </span>
+                          )}
                         </div>
-                        <div className="text-[11px] text-slate-500">
-                          {c.masa && c.masa !== '-' ? `Masa ${c.masa}` : ''}
+                        <div className="text-[11px] text-slate-500 mt-1">
+                          {c.masa && c.masa !== '-' && c.masa !== 'ZZZZZ' ? (
+                            <span>Masa Reg: {c.masa}</span>
+                          ) : (
+                            <span className="text-slate-400">Masa: Paket Kurikulum</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3.5">

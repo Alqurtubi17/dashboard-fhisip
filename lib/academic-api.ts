@@ -199,16 +199,17 @@ export class AcademicApiService {
           const rawKode = String(item.kodemtk || '').trim()
           if (!rawKode || rawKode === '-') continue
 
-          const masa = String(item.masa || '').trim().toUpperCase()
-          const grade = String(item.grade || '').trim()
-          const kel = String(item.kel || '').trim().toUpperCase()
-
-          // HANYA ambil mata kuliah yang SUDAH DITEMPUH oleh mahasiswa (memiliki nilai atau masa bukan ZZZZZ)
-          // Mata kuliah dengan masa 'ZZZZZ' atau belum diambil (BL) tanpa nilai adalah paket kurikulum belum ditempuh
-          // Ini mencegah munculnya 6 agama lain yang tidak pernah diambil mahasiswa
-          if (masa === 'ZZZZZ' || (!grade && kel === 'BL')) {
+          // Di API SIA UT LKAM (UO_Z4X_MS_ZDE), flagdisplay: 1 adalah penanda resmi dari UT
+          // untuk menyembunyikan mata kuliah pilihan agama yang tidak diambil (Katolik, Kristen, Buddha, Hindu, Konghucu).
+          // Mata kuliah agama yang riil dipilih mahasiswa (misal: MKWN4101 Pendidikan Agama Islam)
+          // memiliki flagdisplay: 0 sehingga tetap tampil tepat 1 agama pilihan mahasiswa.
+          if (item.flagdisplay === 1 || item.flagdisplay === '1') {
             continue
           }
+
+          const masa = String(item.masa || '').trim().toUpperCase()
+          const rawGrade = String(item.grade || '').trim()
+          const rawKel = String(item.kel || '').trim().toUpperCase()
 
           // Tangani format alih kredit seperti "EMBS4209 (ADBI4438)" atau "FSAB4104 (ADNI4110)"
           const primaryKode = rawKode.split('(')[0].trim().toUpperCase()
@@ -228,8 +229,8 @@ export class AcademicApiService {
 
           const nama = item.namamtk || matchedOfficial?.namaMatkul || primaryKode
           const sks = parseInt(item.sks || '3', 10) || matchedOfficial?.sks || 3
-          const displayGrade = grade || (kel && kel !== 'BL' ? kel : '-')
-          const displayMasa = masa || '-'
+          const displayGrade = rawGrade || (rawKel ? rawKel : '-')
+          const displayMasa = masa && masa !== 'ZZZZZ' ? masa : '-'
           const kelompok = String(item['7'] || '').trim().toUpperCase() // "KI" = Kelompok Inti, "KN" = Kelompok Non-Inti
 
           // Evaluasi mata kuliah inti (KI atau mata kuliah universitas wajib)
