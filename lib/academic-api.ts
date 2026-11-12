@@ -205,36 +205,22 @@ export class AcademicApiService {
             continue
           }
 
-          const masa = String(item.masa || '').trim().toUpperCase()
-          const rawGrade = String(item.grade || '').trim()
           const rawKel = String(item.kel || '').trim().toUpperCase()
 
-          // 2. KUNCI FILTER LKAM: HANYA MATA KULIAH YANG BENAR-BENAR DIAMBIL/DITEMPUH OLEH MAHASISWA
-          // - masa === 'ZZZZZ' dan kel === 'BL' adalah mata kuliah dalam kurikulum yang BELUM PERNAH DIAMBIL mahasiswa.
-          // - masa === '77777' atau grade === '**' adalah baris mapping ekuivalensi duplikat dari kurikulum baru.
-          // - Mahasiswa hanya dapat mengajukan pengguguran untuk mata kuliah yang telah ditempuh dan memiliki nilai riil.
-          if (
-            masa === 'ZZZZZ' ||
-            masa === '77777' ||
-            rawKel === 'BL' ||
-            rawGrade === '**' ||
-            (!rawGrade && (masa === '-' || !masa))
-          ) {
+          // 2. KUNCI FILTER LKAM RESMI: HANYA MATA KULIAH BERSTATUS LULUS (LL)
+          // Berdasarkan dokumen LKAM resmi UT, seluruh mata kuliah yang telah diselesaikan berstatus kelulusan 'LL' (Lulus).
+          // Mata kuliah dengan status 'BL' (Belum Lulus / Belum Diambil) diabaikan.
+          if (rawKel !== 'LL') {
             continue
           }
+
+          const masa = String(item.masa || '').trim().toUpperCase()
+          const rawGrade = String(item.grade || '').trim()
 
           // Tangani format alih kredit seperti "ISIP4130 (FSIH4101)" atau "EMBS4209 (ADBI4438)"
           const primaryKode = rawKode.split('(')[0].trim().toUpperCase()
           const aliasMatch = rawKode.match(/\((.*?)\)/)
           const aliasKode = aliasMatch ? aliasMatch[1].trim().toUpperCase() : null
-
-          if (aliasKode) {
-            aliasToPrimary.set(aliasKode, primaryKode)
-          }
-
-          if (aliasToPrimary.has(primaryKode) && lkamCourseMap.has(aliasToPrimary.get(primaryKode)!)) {
-            continue
-          }
 
           const matchedOfficial =
             officialMap.get(primaryKode) || (aliasKode ? officialMap.get(aliasKode) : undefined)
@@ -249,24 +235,26 @@ export class AcademicApiService {
           // Evaluasi mata kuliah inti (KI atau mata kuliah universitas/prodi wajib)
           const isCore =
             kelompok === 'KI' ||
-            matchedOfficial?.kategori === 'INTI' ||
-            aliasOfficial?.kategori === 'INTI' ||
-            isGeneralUniversityCourse(primaryKode) ||
-            (aliasKode ? isGeneralUniversityCourse(aliasKode) : false) ||
-            primaryKode.startsWith('MKWN') ||
-            primaryKode.startsWith('MKWU') ||
-            primaryKode.startsWith('MKDU') ||
-            primaryKode.startsWith('MKDI') ||
-            (aliasKode ? aliasKode.startsWith('MKWN') || aliasKode.startsWith('MKWU') || aliasKode.startsWith('MKDU') || aliasKode.startsWith('MKDI') : false) ||
-            primaryKode.endsWith('4500') ||
-            primaryKode.endsWith('4560') ||
-            (aliasKode ? aliasKode.endsWith('4500') || aliasKode.endsWith('4560') : false) ||
-            nama.toUpperCase().includes('TUGAS AKHIR PROGRAM') ||
-            nama.toUpperCase().includes('KARYA ILMIAH') ||
-            nama.toUpperCase().includes('PANCASILA') ||
-            nama.toUpperCase().includes('KEWARGANEGARAAN') ||
-            nama.toUpperCase().includes('BAHASA INDONESIA') ||
-            nama.toUpperCase().includes('AGAMA')
+            (kelompok !== 'KN' && (
+              matchedOfficial?.kategori === 'INTI' ||
+              aliasOfficial?.kategori === 'INTI' ||
+              isGeneralUniversityCourse(primaryKode) ||
+              (aliasKode ? isGeneralUniversityCourse(aliasKode) : false) ||
+              primaryKode.startsWith('MKWN') ||
+              primaryKode.startsWith('MKWU') ||
+              primaryKode.startsWith('MKDU') ||
+              primaryKode.startsWith('MKDI') ||
+              (aliasKode ? aliasKode.startsWith('MKWN') || aliasKode.startsWith('MKWU') || aliasKode.startsWith('MKDU') || aliasKode.startsWith('MKDI') : false) ||
+              primaryKode.endsWith('4500') ||
+              primaryKode.endsWith('4560') ||
+              (aliasKode ? aliasKode.endsWith('4500') || aliasKode.endsWith('4560') : false) ||
+              nama.toUpperCase().includes('TUGAS AKHIR PROGRAM') ||
+              nama.toUpperCase().includes('KARYA ILMIAH') ||
+              nama.toUpperCase().includes('PANCASILA') ||
+              nama.toUpperCase().includes('KEWARGANEGARAAN') ||
+              nama.toUpperCase().includes('BAHASA INDONESIA') ||
+              nama.toUpperCase().includes('AGAMA')
+            ))
 
           let dbId = matchedOfficial?.id || aliasOfficial?.id || `api-${primaryKode}`
           try {
@@ -295,7 +283,7 @@ export class AcademicApiService {
             // Abaikan kesalahan DB jika terjadi konflik concurrency
           }
 
-          // Simpan dengan key kode unik transkrip agar alih kredit tidak menimpa satu sama lain
+          // Simpan dengan key kode unik transkrip agar seluruh baris LKAM tersimpan
           const courseKey = rawKode.toUpperCase()
           lkamCourseMap.set(courseKey, {
             id: dbId,
@@ -311,13 +299,6 @@ export class AcademicApiService {
             kelompok: kelompok || (isCore ? 'KI' : 'KN'),
             semester: item.semester || null,
           })
-        }
-
-        // Hapus duplikat alias jika sempat terdaftar sebelum primary
-        for (const [alias, primary] of aliasToPrimary.entries()) {
-          if (lkamCourseMap.has(alias) && lkamCourseMap.has(primary)) {
-            lkamCourseMap.delete(alias)
-          }
         }
       }
     } catch (err) {
