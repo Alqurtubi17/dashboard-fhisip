@@ -96,6 +96,25 @@ export async function GET(req: NextRequest) {
       kurikulum: student.kurikulum || '2024',
     })
 
+    if (!courseApiResult.success) {
+      return NextResponse.json({
+        success: false,
+        message: courseApiResult.message || 'Gagal memuat transkrip LKAM dari server akademik UT.',
+        student: {
+          nim: student.nim,
+          name: student.name,
+          prodi: student.prodi,
+          prodiCode: student.prodiCode,
+          officialProdiCode,
+          prodiName: officialProdiName,
+          semester: student.semester,
+          status: student.status,
+        },
+        courses: [],
+        activeSubmissions,
+      })
+    }
+
     const appliedSet = new Set(activeSubmissions.map((s) => s.kodeMatkul.toUpperCase()))
 
     // Format data mata kuliah sesuai transkrip mahasiswa

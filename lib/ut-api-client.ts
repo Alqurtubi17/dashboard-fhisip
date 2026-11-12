@@ -64,15 +64,20 @@ export async function fetchUtApi(code: string, payload: Record<string, any> = {}
       json = { raw: text }
     }
 
-    // Auto-refresh token jika kadaluarsa (HTTP 401 atau 500 dengan pesan token kadaluarsa)
+    // Auto-refresh token jika kadaluarsa (HTTP 401, 403, atau pesan respon mengindikasikan token tidak valid/kadaluarsa)
+    const lowerText = typeof text === 'string' ? text.toLowerCase() : ''
     const isTokenExpired =
       res.status === 401 ||
-      (res.status === 500 &&
-        typeof text === 'string' &&
-        (text.toLowerCase().includes('token tidak valid') ||
-          text.toLowerCase().includes('kadaluarsa') ||
-          text.toLowerCase().includes('expired') ||
-          text.toLowerCase().includes('unauthorized')))
+      res.status === 403 ||
+      json?.statusCode === 401 ||
+      json?.statusCode === 403 ||
+      lowerText.includes('token kadaluarsa') ||
+      lowerText.includes('token expired') ||
+      lowerText.includes('token tidak valid') ||
+      lowerText.includes('invalid token') ||
+      lowerText.includes('jwt expired') ||
+      lowerText.includes('unauthorized') ||
+      lowerText.includes('token habis')
 
     if (isTokenExpired && config.providerId) {
       const refreshed = await getExternalToken(config.providerId, true)
@@ -94,6 +99,11 @@ export async function fetchUtApi(code: string, payload: Record<string, any> = {}
 
     if (!res.ok) {
       return { success: false, status: res.status, data: json }
+    }
+
+    // Jika upstream mengirim status 200 tetapi JSON berisi indikasi error auth/gagal
+    if (json && (json.status === false || json.success === false) && !json.data) {
+      return { success: false, status: res.status, data: json, error: json.message || 'API response indicated failure' }
     }
 
     return { success: true, data: json }

@@ -47,6 +47,7 @@ export default function StudentPengguguranPage() {
   const [lampiranUrl, setLampiranUrl] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -80,26 +81,31 @@ export default function StudentPengguguranPage() {
   const loadCourses = async () => {
     try {
       setLoading(true)
+      setLoadError(null)
       const [courseRes, meRes] = await Promise.all([
         fetch('/api/mahasiswa/mata-kuliah?refresh=true').then((r) => r.json()),
         fetch('/api/mahasiswa/me').then((r) => r.json()),
       ])
 
       if (courseRes.success) {
-        setCourses(courseRes.data)
+        setCourses(courseRes.data || [])
         setApiMeta({
           source: courseRes.source,
           apiConfigured: courseRes.apiConfigured,
           message: courseRes.message,
         })
+      } else {
+        setCourses([])
+        setLoadError(courseRes.message || 'Gagal memuat transkrip LKAM dari server akademik UT.')
       }
 
       if (meRes.success) {
         setStudent(meRes.student)
         setActivePeriode(meRes.activePeriode)
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load courses:', err)
+      setLoadError(err?.message || 'Gagal terhubung ke server akademik.')
     } finally {
       setLoading(false)
     }
@@ -278,10 +284,32 @@ export default function StudentPengguguranPage() {
 
         <div className="flex items-center gap-2">
           <div className="px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
-            {loading ? 'Memuat data...' : `${courses.length} Mata Kuliah Terdaftar`}
+            {loading ? 'Memuat data...' : `${courses.length} Mata Kuliah LKAM`}
           </div>
         </div>
       </div>
+
+      {/* Error Alert jika LKAM gagal dimuat */}
+      {loadError && (
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center justify-between gap-3 shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+            <div>
+              <p className="font-bold text-sm">Gagal Mengambil Data Transkrip LKAM</p>
+              <p className="mt-0.5 text-rose-700">
+                {loadError}. Sistem tidak akan menampilkan data perkiraan agar data yang diajukan akurat sesuai riwayat nilai Anda.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => loadCourses()}
+            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-sm shrink-0"
+          >
+            Muat Ulang LKAM
+          </button>
+        </div>
+      )}
 
       {/* Timeline Status Alert */}
       {!loading && !isPengajuanOpen && (

@@ -61,6 +61,16 @@ export async function GET(req: NextRequest) {
       bypassCache: refresh,
     })
 
+    if (!apiResult.success) {
+      return NextResponse.json({
+        success: false,
+        source: apiResult.source,
+        apiConfigured: apiResult.apiConfigured,
+        message: apiResult.message || 'Gagal memuat transkrip LKAM dari server akademik UT. Silakan muat ulang halaman.',
+        data: [],
+      })
+    }
+
     // Tandai status pengajuan aktif pada setiap mata kuliah
     const enrichedData = apiResult.data.map((c) => {
       const existing = appliedCourseMap.get(c.kode_mk.toUpperCase())
