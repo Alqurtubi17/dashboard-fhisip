@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import { prisma } from './prisma'
 import { fetchUtApi } from './ut-api-client'
 import { resolveProdiInfo, isGeneralUniversityCourse } from './prodi-codes'
@@ -40,6 +42,46 @@ type CacheEntry = {
 }
 
 const cacheStore = new Map<string, CacheEntry>()
+
+function getSnapshotDir(): string {
+  const dir = path.join(process.cwd(), 'data', 'lkam_snapshots')
+  if (!fs.existsSync(dir)) {
+    try {
+      fs.mkdirSync(dir, { recursive: true })
+    } catch {
+      // Ignore
+    }
+  }
+  return dir
+}
+
+function getStoredSnapshot(nim: string): AcademicCourse[] | null {
+  try {
+    const cleanNim = nim.trim()
+    const filePath = path.join(getSnapshotDir(), `${cleanNim}.json`)
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8')
+      const parsed = JSON.parse(content)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed
+      }
+    }
+  } catch (err) {
+    console.error(`Error reading snapshot for NIM ${nim}:`, err)
+  }
+  return null
+}
+
+function saveSnapshot(nim: string, courses: AcademicCourse[]): void {
+  try {
+    if (!courses || courses.length === 0) return
+    const cleanNim = nim.trim()
+    const filePath = path.join(getSnapshotDir(), `${cleanNim}.json`)
+    fs.writeFileSync(filePath, JSON.stringify(courses, null, 2), 'utf-8')
+  } catch (err) {
+    console.error(`Error saving snapshot for NIM ${nim}:`, err)
+  }
+}
 
 /**
  * Service Client Integrasi API Akademik Mata Kuliah FHISIP UT
@@ -100,7 +142,7 @@ export class AcademicApiService {
     const cacheKey = `courses:${nim}:${officialProdiCode}:${kurikulum}`
     const now = Date.now()
 
-    // 1. Cek In-Memory Cache (hanya jika data transkrip valid dengan nilai)
+    // 1. Cek In-Memory Cache atau Persistent Snapshot Storage
     if (!bypassCache) {
       const cached = cacheStore.get(cacheKey)
       if (
@@ -117,22 +159,41 @@ export class AcademicApiService {
           data: cached.data,
         }
       }
+
+      // Cek Snapshot Penyimpanan Permanen (data tersimpan dari LKAM agar tidak hit API berulang kali)
+      const snapshot = getStoredSnapshot(nim)
+      if (snapshot && snapshot.length > 0) {
+        cacheStore.set(cacheKey, { timestamp: now, data: snapshot })
+        return {
+          success: true,
+          source: 'LOCAL_REPOSITORY',
+          apiConfigured: true,
+          message: 'Data mata kuliah LKAM berhasil dimuat dari arsip pangkalan data akademik.',
+          timestamp: new Date().toISOString(),
+          data: snapshot,
+        }
+      }
     }
 
     // 2. Ambil basis data kurikulum lokal
-    const officialCourses = await prisma.mataKuliah.findMany({
-      where: { isActive: true },
-      select: {
-        id: true,
-        kodeMatkul: true,
-        namaMatkul: true,
-        sks: true,
-        prodiCode: true,
-        prodiName: true,
-        kategori: true,
-      },
-      orderBy: [{ kodeMatkul: 'asc' }],
-    })
+    let officialCourses: any[] = []
+    try {
+      officialCourses = await prisma.mataKuliah.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          kodeMatkul: true,
+          namaMatkul: true,
+          sks: true,
+          prodiCode: true,
+          prodiName: true,
+          kategori: true,
+        },
+        orderBy: [{ kodeMatkul: 'asc' }],
+      })
+    } catch {
+      // Abaikan jika database sedang tidak dapat dijangkau
+    }
 
     const officialMap = new Map(officialCourses.map((c) => [c.kodeMatkul.toUpperCase(), c]))
 
@@ -314,9 +375,21 @@ export class AcademicApiService {
     }
 
     // 4. Validasi hasil pemuatan transkrip LKAM
-    // Pengguguran HANYA berlaku untuk mata kuliah yang tercatat di LKAM mahasiswa.
-    // Jangan pernah fallback ke katalog umum prodi (99 matkul dummy) jika LKAM gagal dimuat.
+    // Jika API UO_Z4X_MS_ZDE gagal/timeout, fallback ke snapshot LKAM tersimpan agar tidak pernah error!
     if (!isFromLkam) {
+      const fallbackSnapshot = getStoredSnapshot(nim)
+      if (fallbackSnapshot && fallbackSnapshot.length > 0) {
+        cacheStore.set(cacheKey, { timestamp: now, data: fallbackSnapshot })
+        return {
+          success: true,
+          source: 'LOCAL_REPOSITORY',
+          apiConfigured: true,
+          message: 'Data mata kuliah LKAM dimuat dari arsip pangkalan data akademik.',
+          timestamp: new Date().toISOString(),
+          data: fallbackSnapshot,
+        }
+      }
+
       return {
         success: false,
         source: 'EXTERNAL_API',
@@ -377,9 +450,10 @@ export class AcademicApiService {
     // Sort ascending berdasarkan kode mata kuliah
     finalCourses.sort((a, b) => a.kode_mk.localeCompare(b.kode_mk))
 
-    // Simpan ke Cache hanya jika berhasil memuat data transkrip
+    // Simpan ke Cache dan Persistent Snapshot File agar tidak hit API berkali-kali
     if (isFromLkam && finalCourses.length > 0) {
       cacheStore.set(cacheKey, { timestamp: now, data: finalCourses })
+      saveSnapshot(nim, finalCourses)
     }
 
     const message = isFromLkam
