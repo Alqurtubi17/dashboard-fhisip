@@ -51,11 +51,14 @@ export async function GET(req: NextRequest) {
 
     const appliedCourseMap = new Map(activeSubmissions.map((s) => [s.kodeMatkul.toUpperCase(), s]))
 
+    const refresh = req.nextUrl.searchParams.get('refresh') === 'true'
+
     // Panggil Service Integrasi Academic API
     const apiResult = await AcademicApiService.getStudentCourses({
       nim: student.nim,
       prodiCode: student.prodiCode || student.prodi || 'FSIH',
       kurikulum: student.kurikulum || '2024',
+      bypassCache: refresh,
     })
 
     // Tandai status pengajuan aktif pada setiap mata kuliah

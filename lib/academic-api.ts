@@ -71,6 +71,10 @@ export class AcademicApiService {
     return isNaN(val) || val <= 0 ? 3600 : val
   }
 
+  public static clearCache(): void {
+    cacheStore.clear()
+  }
+
   public static isConfigured(): boolean {
     return Boolean(this.baseUrl && this.baseUrl.startsWith('http'))
   }
@@ -84,8 +88,9 @@ export class AcademicApiService {
     nim: string
     prodiCode: string
     kurikulum?: string
+    bypassCache?: boolean
   }): Promise<AcademicApiResponse> {
-    const { nim, prodiCode, kurikulum = '2024' } = params
+    const { nim, prodiCode, kurikulum = '2024', bypassCache = false } = params
     const prodiInfo = resolveProdiInfo(prodiCode)
     const officialProdiCode = prodiInfo?.officialCode || prodiCode.toUpperCase()
     const officialProdiName = prodiInfo?.name || 'FHISIP Universitas Terbuka'
@@ -93,16 +98,22 @@ export class AcademicApiService {
     const cacheKey = `courses:${nim}:${officialProdiCode}:${kurikulum}`
     const now = Date.now()
 
-    // 1. Cek In-Memory Cache
-    const cached = cacheStore.get(cacheKey)
-    if (cached && now - cached.timestamp < this.cacheTtlSeconds * 1000) {
-      return {
-        success: true,
-        source: 'EXTERNAL_API',
-        apiConfigured: true,
-        message: 'Data mata kuliah berhasil dimuat dari sistem akademik.',
-        timestamp: new Date(cached.timestamp).toISOString(),
-        data: cached.data,
+    // 1. Cek In-Memory Cache (hanya jika data transkrip valid dengan nilai)
+    if (!bypassCache) {
+      const cached = cacheStore.get(cacheKey)
+      if (
+        cached &&
+        now - cached.timestamp < this.cacheTtlSeconds * 1000 &&
+        cached.data.some((c) => c.grade && c.grade !== '-')
+      ) {
+        return {
+          success: true,
+          source: 'EXTERNAL_API',
+          apiConfigured: true,
+          message: 'Data mata kuliah berhasil dimuat dari sistem akademik.',
+          timestamp: new Date(cached.timestamp).toISOString(),
+          data: cached.data,
+        }
       }
     }
 
@@ -188,6 +199,17 @@ export class AcademicApiService {
           const rawKode = String(item.kodemtk || '').trim()
           if (!rawKode || rawKode === '-') continue
 
+          const masa = String(item.masa || '').trim().toUpperCase()
+          const grade = String(item.grade || '').trim()
+          const kel = String(item.kel || '').trim().toUpperCase()
+
+          // HANYA ambil mata kuliah yang SUDAH DITEMPUH oleh mahasiswa (memiliki nilai atau masa bukan ZZZZZ)
+          // Mata kuliah dengan masa 'ZZZZZ' atau belum diambil (BL) tanpa nilai adalah paket kurikulum belum ditempuh
+          // Ini mencegah munculnya 6 agama lain yang tidak pernah diambil mahasiswa
+          if (masa === 'ZZZZZ' || (!grade && kel === 'BL')) {
+            continue
+          }
+
           // Tangani format alih kredit seperti "EMBS4209 (ADBI4438)" atau "FSAB4104 (ADNI4110)"
           const primaryKode = rawKode.split('(')[0].trim().toUpperCase()
           const aliasMatch = rawKode.match(/\((.*?)\)/)
@@ -206,8 +228,8 @@ export class AcademicApiService {
 
           const nama = item.namamtk || matchedOfficial?.namaMatkul || primaryKode
           const sks = parseInt(item.sks || '3', 10) || matchedOfficial?.sks || 3
-          const grade = item.grade || item.kel || '-'
-          const masa = item.masa || '-'
+          const displayGrade = grade || (kel && kel !== 'BL' ? kel : '-')
+          const displayMasa = masa || '-'
           const kelompok = String(item['7'] || '').trim().toUpperCase() // "KI" = Kelompok Inti, "KN" = Kelompok Non-Inti
 
           // Evaluasi mata kuliah inti (KI atau mata kuliah universitas wajib)
@@ -259,8 +281,8 @@ export class AcademicApiService {
             prodiCode: officialProdiCode,
             prodiName: officialProdiName,
             kategori: isCore ? 'INTI' : 'NON_INTI',
-            grade,
-            masa,
+            grade: displayGrade,
+            masa: displayMasa,
             kelompok: kelompok || (isCore ? 'KI' : 'KN'),
             semester: item.semester || null,
           })
@@ -284,13 +306,15 @@ export class AcademicApiService {
     // HANYA mata kuliah yang ada di transkrip sementara tersebut yang disajikan untuk digugurkan!
     const finalMap = new Map<string, any>()
 
-    if (isFromLkam && lkamCourseMap.size > 0) {
-      // HANYA ambil mata kuliah dari transkrip sementara mahasiswa
+    if (isFromLkam) {
+      // HANYA ambil mata kuliah dari transkrip sementara mahasiswa yang sudah ditempuh
       for (const [k, c] of lkamCourseMap.entries()) {
         finalMap.set(k, c)
       }
     } else {
-      // Fallback HANYA jika transkrip sementara kosong/offline: sajikan kurikulum prodi
+      // Fallback HANYA jika API UO_Z4X_MS_ZDE offline/gagal koneksi:
+      // Ambil mata kuliah prodi, namun cegah duplikasi mata kuliah pilihan agama (maksimal 1 agama)
+      let includedAgama = false
       const isProdiMatch = (c: any) => {
         if (!prodiInfo) {
           return (c.prodiCode || '').toUpperCase() === officialProdiCode
@@ -306,6 +330,12 @@ export class AcademicApiService {
 
       for (const c of officialMap.values()) {
         const key = c.kodeMatkul.toUpperCase()
+        const isAgama = c.namaMatkul.toUpperCase().includes('AGAMA')
+        if (isAgama) {
+          if (includedAgama) continue // Cegah munculnya 6 agama sekaligus
+          includedAgama = true
+        }
+
         if (isProdiMatch(c)) {
           finalMap.set(key, {
             ...c,
@@ -361,23 +391,24 @@ export class AcademicApiService {
     // Sort ascending berdasarkan kode mata kuliah
     finalCourses.sort((a, b) => a.kode_mk.localeCompare(b.kode_mk))
 
-    // Simpan ke Cache
-    cacheStore.set(cacheKey, { timestamp: now, data: finalCourses })
+    // Simpan ke Cache hanya jika berhasil memuat data transkrip
+    if (isFromLkam && finalCourses.length > 0) {
+      cacheStore.set(cacheKey, { timestamp: now, data: finalCourses })
+    }
+
+    const message = isFromLkam
+      ? finalCourses.length > 0
+        ? 'Data mata kuliah transkrip berhasil dimuat dari sistem akademik (UO_Z4X_MS_ZDE).'
+        : 'Mahasiswa belum memiliki riwayat mata kuliah yang telah ditempuh / memiliki nilai pada transkrip akademik.'
+      : 'Data mata kuliah berhasil dimuat dari sistem akademik.'
 
     return {
       success: true,
       source: isFromLkam || isFromExternalApi ? 'EXTERNAL_API' : 'LOCAL_REPOSITORY',
       apiConfigured: true,
-      message: 'Data mata kuliah berhasil dimuat dari sistem akademik.',
+      message,
       timestamp: new Date().toISOString(),
       data: finalCourses,
     }
-  }
-
-  /**
-   * Reset / bersihkan cache
-   */
-  public static clearCache() {
-    cacheStore.clear()
   }
 }

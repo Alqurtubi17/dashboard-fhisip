@@ -50,18 +50,46 @@ export async function fetchUtApi(code: string, payload: Record<string, any> = {}
       }
     }
 
-    const res = await fetch(finalTargetUrl, {
+    let res = await fetch(finalTargetUrl, {
       method: config.method || 'POST',
       headers: reqHeaders,
       body: fetchBody,
     })
 
-    const text = await res.text()
+    let text = await res.text()
     let json: any = {}
     try {
       json = JSON.parse(text)
     } catch {
       json = { raw: text }
+    }
+
+    // Auto-refresh token jika kadaluarsa (HTTP 401 atau 500 dengan pesan token kadaluarsa)
+    const isTokenExpired =
+      res.status === 401 ||
+      (res.status === 500 &&
+        typeof text === 'string' &&
+        (text.toLowerCase().includes('token tidak valid') ||
+          text.toLowerCase().includes('kadaluarsa') ||
+          text.toLowerCase().includes('expired') ||
+          text.toLowerCase().includes('unauthorized')))
+
+    if (isTokenExpired && config.providerId) {
+      const refreshed = await getExternalToken(config.providerId, true)
+      if (refreshed.success && refreshed.token) {
+        reqHeaders[refreshed.headerName] = `${refreshed.headerPrefix}${refreshed.token}`
+        res = await fetch(finalTargetUrl, {
+          method: config.method || 'POST',
+          headers: reqHeaders,
+          body: fetchBody,
+        })
+        text = await res.text()
+        try {
+          json = JSON.parse(text)
+        } catch {
+          json = { raw: text }
+        }
+      }
     }
 
     if (!res.ok) {
