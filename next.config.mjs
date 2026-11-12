@@ -33,6 +33,9 @@ const securityHeaders = [
 const nextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  experimental: {
+    instrumentationHook: true,
+  },
   async headers() {
     return [
       {

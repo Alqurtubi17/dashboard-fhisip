@@ -1,5 +1,11 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { ensureSrsTokenSchedulerStarted } from '@/lib/srs-token-scheduler'
+
+// Pastikan penjadwal pembaruan token SRS (tiap 20 menit) aktif di server
+if (typeof window === 'undefined') {
+  ensureSrsTokenSchedulerStarted()
+}
 
 export const metadata: Metadata = {
   title: {
