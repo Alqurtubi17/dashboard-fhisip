@@ -412,8 +412,8 @@ export default function StudentPengguguranPage() {
                       </td>
                       <td className="px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap">{c.sks} SKS</td>
                       <td className="px-4 py-3.5 whitespace-nowrap">
-                        <div className="font-bold text-slate-800">
-                          {c.grade && c.grade !== '-' && c.grade !== 'BL' ? (
+                        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                          {c.grade && c.grade !== '-' && c.grade !== 'BL' && c.grade !== '**' ? (
                             <span className="inline-flex items-center gap-1 font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-md text-[11px] font-semibold">
                               Nilai: {c.grade}
                             </span>
@@ -424,6 +424,14 @@ export default function StudentPengguguranPage() {
                           ) : (
                             <span className="inline-flex items-center gap-1 font-mono text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md text-[11px]">
                               Belum Ada Nilai
+                            </span>
+                          )}
+                          {c.isKesetaraan && (
+                            <span
+                              className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200"
+                              title={c.kesetaraanKet || 'Mata Kuliah Kesetaraan'}
+                            >
+                              {c.kesetaraanKet || 'Kesetaraan'}
                             </span>
                           )}
                         </div>
@@ -637,6 +645,9 @@ export default function StudentPengguguranPage() {
                           )}
                           {c.masa && c.masa !== '-' && (
                             <> • Masa: <strong className="text-slate-900 font-mono">{c.masa}</strong></>
+                          )}
+                          {c.isKesetaraan && (
+                            <> • <span className="text-purple-700 font-semibold">{c.kesetaraanKet || 'Kesetaraan'}</span></>
                           )}
                         </div>
                       </div>

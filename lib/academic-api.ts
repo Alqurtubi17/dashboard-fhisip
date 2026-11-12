@@ -20,6 +20,8 @@ export type AcademicCourse = {
   masa?: string
   semester?: string | number
   kelompok?: string
+  isKesetaraan?: boolean
+  kesetaraanKet?: string
 }
 
 export type AcademicApiResponse = {
@@ -196,6 +198,25 @@ export class AcademicApiService {
         const bodyObj = lkamRes.data.data[0].body
         const bodyEntries = Object.values(bodyObj) as any[]
 
+        // Peta pencocokan nilai mata kuliah kesetaraan (format: "KODE_LAMA (KODE_BARU)" -> nilai riil & masa)
+        const kesetaraanGradeMap = new Map<string, { asalKode: string; rawKode: string; grade: string; masa: string }>()
+        for (const item of bodyEntries) {
+          const rawKode = String(item.kodemtk || '').trim()
+          const aliasMatch = rawKode.match(/\((.*?)\)/)
+          const rawGrade = String(item.grade || '').trim()
+          const rawMasa = String(item.masa || '').trim()
+          if (aliasMatch && rawGrade && rawGrade !== '**') {
+            const targetKode = aliasMatch[1].trim().toUpperCase()
+            const asalKode = rawKode.split('(')[0].trim().toUpperCase()
+            kesetaraanGradeMap.set(targetKode, {
+              asalKode,
+              rawKode,
+              grade: rawGrade,
+              masa: rawMasa && rawMasa !== 'ZZZZZ' && rawMasa !== '77777' ? rawMasa : '',
+            })
+          }
+        }
+
         for (const item of bodyEntries) {
           const rawKode = String(item.kodemtk || '').trim()
           if (!rawKode || rawKode === '-') continue
@@ -228,8 +249,32 @@ export class AcademicApiService {
 
           const nama = item.namamtk || matchedOfficial?.namaMatkul || aliasOfficial?.namaMatkul || primaryKode
           const sks = parseInt(item.sks || '3', 10) || matchedOfficial?.sks || aliasOfficial?.sks || 3
-          const displayGrade = rawGrade || '-'
-          const displayMasa = masa && masa !== 'ZZZZZ' ? masa : '-'
+          let displayGrade = rawGrade || '-'
+          let displayMasa = masa && masa !== 'ZZZZZ' ? masa : '-'
+          let isKesetaraan = false
+          let kesetaraanKet: string | undefined = undefined
+
+          // Cek jika baris ini adalah mata kuliah kesetaraan kurikulum lama (kolom '7' kosong / ada tanda kurung)
+          if (!item['7'] && rawKode.includes('(')) {
+            isKesetaraan = true
+            kesetaraanKet = 'Kesetaraan'
+          }
+
+          // Jika nilai berupa '**' (mata kuliah kurikulum baru hasil kesetaraan):
+          // Ambil nilai riil dan masa registrasi dari mata kuliah kesetaraan pasangannya!
+          if (displayGrade === '**' || masa === '77777') {
+            const eq = kesetaraanGradeMap.get(primaryKode)
+            if (eq) {
+              displayGrade = eq.grade
+              if (eq.masa) displayMasa = eq.masa
+              isKesetaraan = true
+              kesetaraanKet = `Kesetaraan (${eq.asalKode})`
+            } else {
+              isKesetaraan = true
+              kesetaraanKet = 'Kesetaraan'
+            }
+          }
+
           const kelompok = String(item['7'] || '').trim().toUpperCase() // "KI" = Kelompok Inti, "KN" = Kelompok Non-Inti
 
           // Evaluasi mata kuliah inti (KI atau mata kuliah universitas/prodi wajib)
@@ -298,6 +343,8 @@ export class AcademicApiService {
             masa: displayMasa,
             kelompok: kelompok || (isCore ? 'KI' : 'KN'),
             semester: item.semester || null,
+            isKesetaraan,
+            kesetaraanKet,
           })
         }
       }
@@ -386,6 +433,8 @@ export class AcademicApiService {
         masa: c.masa || '-',
         semester: c.semester,
         kelompok: c.kelompok,
+        isKesetaraan: c.isKesetaraan,
+        kesetaraanKet: c.kesetaraanKet,
         dropIneligibleReason: !canDrop
           ? 'Mata kuliah ini termasuk kategori Mata Kuliah Inti (KI) dan tidak dapat diajukan untuk pengguguran.'
           : undefined,
