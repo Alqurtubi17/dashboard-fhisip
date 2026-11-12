@@ -337,9 +337,18 @@ export default function StudentPengguguranPage() {
             <p className="text-xs font-semibold">Mengambil daftar mata kuliah dari sistem akademik...</p>
           </div>
         ) : filteredCourses.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
+          <div className="py-16 text-center text-slate-400 px-4">
             <BookX className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-            <p className="font-semibold text-slate-600">Tidak ada mata kuliah yang cocok dengan pencarian.</p>
+            <p className="font-semibold text-slate-600">
+              {courses.length === 0
+                ? 'Belum ada mata kuliah yang pernah ditempuh atau memiliki nilai pada LKAM Anda.'
+                : 'Tidak ada mata kuliah yang cocok dengan pencarian.'}
+            </p>
+            {courses.length === 0 && (
+              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                Pengguguran mata kuliah hanya dapat diajukan untuk mata kuliah yang telah ditempuh dan memiliki nilai riil pada Lembar Kemajuan Akademik Mahasiswa (LKAM).
+              </p>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">

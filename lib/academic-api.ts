@@ -192,6 +192,7 @@ export class AcademicApiService {
     try {
       const lkamRes = await fetchUtApi('UO_Z4X_MS_ZDE', { nim })
       if (lkamRes.success && lkamRes.data?.data?.[0]?.body) {
+        isFromLkam = true
         const bodyObj = lkamRes.data.data[0].body
         const bodyEntries = Object.values(bodyObj) as any[]
 
@@ -199,10 +200,7 @@ export class AcademicApiService {
           const rawKode = String(item.kodemtk || '').trim()
           if (!rawKode || rawKode === '-') continue
 
-          // Di API SIA UT LKAM (UO_Z4X_MS_ZDE), flagdisplay: 1 adalah penanda resmi dari UT
-          // untuk menyembunyikan mata kuliah pilihan agama yang tidak diambil (Katolik, Kristen, Buddha, Hindu, Konghucu).
-          // Mata kuliah agama yang riil dipilih mahasiswa (misal: MKWN4101 Pendidikan Agama Islam)
-          // memiliki flagdisplay: 0 sehingga tetap tampil tepat 1 agama pilihan mahasiswa.
+          // 1. Abaikan mata kuliah pilihan agama yang tidak diambil (flagdisplay: 1 penanda resmi SIA UT)
           if (item.flagdisplay === 1 || item.flagdisplay === '1') {
             continue
           }
@@ -211,7 +209,21 @@ export class AcademicApiService {
           const rawGrade = String(item.grade || '').trim()
           const rawKel = String(item.kel || '').trim().toUpperCase()
 
-          // Tangani format alih kredit seperti "EMBS4209 (ADBI4438)" atau "FSAB4104 (ADNI4110)"
+          // 2. KUNCI FILTER LKAM: HANYA MATA KULIAH YANG BENAR-BENAR DIAMBIL/DITEMPUH OLEH MAHASISWA
+          // - masa === 'ZZZZZ' dan kel === 'BL' adalah mata kuliah dalam kurikulum yang BELUM PERNAH DIAMBIL mahasiswa.
+          // - masa === '77777' atau grade === '**' adalah baris mapping ekuivalensi duplikat dari kurikulum baru.
+          // - Mahasiswa hanya dapat mengajukan pengguguran untuk mata kuliah yang telah ditempuh dan memiliki nilai riil.
+          if (
+            masa === 'ZZZZZ' ||
+            masa === '77777' ||
+            rawKel === 'BL' ||
+            rawGrade === '**' ||
+            (!rawGrade && (masa === '-' || !masa))
+          ) {
+            continue
+          }
+
+          // Tangani format alih kredit seperti "ISIP4130 (FSIH4101)" atau "EMBS4209 (ADBI4438)"
           const primaryKode = rawKode.split('(')[0].trim().toUpperCase()
           const aliasMatch = rawKode.match(/\((.*?)\)/)
           const aliasKode = aliasMatch ? aliasMatch[1].trim().toUpperCase() : null
@@ -226,27 +238,37 @@ export class AcademicApiService {
 
           const matchedOfficial =
             officialMap.get(primaryKode) || (aliasKode ? officialMap.get(aliasKode) : undefined)
+          const aliasOfficial = aliasKode ? officialMap.get(aliasKode) : undefined
 
-          const nama = item.namamtk || matchedOfficial?.namaMatkul || primaryKode
-          const sks = parseInt(item.sks || '3', 10) || matchedOfficial?.sks || 3
-          const displayGrade = rawGrade || (rawKel ? rawKel : '-')
+          const nama = item.namamtk || matchedOfficial?.namaMatkul || aliasOfficial?.namaMatkul || primaryKode
+          const sks = parseInt(item.sks || '3', 10) || matchedOfficial?.sks || aliasOfficial?.sks || 3
+          const displayGrade = rawGrade || '-'
           const displayMasa = masa && masa !== 'ZZZZZ' ? masa : '-'
           const kelompok = String(item['7'] || '').trim().toUpperCase() // "KI" = Kelompok Inti, "KN" = Kelompok Non-Inti
 
-          // Evaluasi mata kuliah inti (KI atau mata kuliah universitas wajib)
+          // Evaluasi mata kuliah inti (KI atau mata kuliah universitas/prodi wajib)
           const isCore =
             kelompok === 'KI' ||
             matchedOfficial?.kategori === 'INTI' ||
+            aliasOfficial?.kategori === 'INTI' ||
             isGeneralUniversityCourse(primaryKode) ||
+            (aliasKode ? isGeneralUniversityCourse(aliasKode) : false) ||
+            primaryKode.startsWith('MKWN') ||
+            primaryKode.startsWith('MKWU') ||
+            primaryKode.startsWith('MKDU') ||
+            primaryKode.startsWith('MKDI') ||
+            (aliasKode ? aliasKode.startsWith('MKWN') || aliasKode.startsWith('MKWU') || aliasKode.startsWith('MKDU') || aliasKode.startsWith('MKDI') : false) ||
             primaryKode.endsWith('4500') ||
             primaryKode.endsWith('4560') ||
+            (aliasKode ? aliasKode.endsWith('4500') || aliasKode.endsWith('4560') : false) ||
             nama.toUpperCase().includes('TUGAS AKHIR PROGRAM') ||
             nama.toUpperCase().includes('KARYA ILMIAH') ||
             nama.toUpperCase().includes('PANCASILA') ||
             nama.toUpperCase().includes('KEWARGANEGARAAN') ||
+            nama.toUpperCase().includes('BAHASA INDONESIA') ||
             nama.toUpperCase().includes('AGAMA')
 
-          let dbId = matchedOfficial?.id || `api-${primaryKode}`
+          let dbId = matchedOfficial?.id || aliasOfficial?.id || `api-${primaryKode}`
           try {
             const dbRecord = await prisma.mataKuliah.upsert({
               where: { kodeMatkul: primaryKode },
@@ -273,7 +295,9 @@ export class AcademicApiService {
             // Abaikan kesalahan DB jika terjadi konflik concurrency
           }
 
-          lkamCourseMap.set(primaryKode, {
+          // Simpan dengan key kode unik transkrip agar alih kredit tidak menimpa satu sama lain
+          const courseKey = rawKode.toUpperCase()
+          lkamCourseMap.set(courseKey, {
             id: dbId,
             kodeMatkul: rawKode,
             primaryKode,
@@ -287,8 +311,6 @@ export class AcademicApiService {
             kelompok: kelompok || (isCore ? 'KI' : 'KN'),
             semester: item.semester || null,
           })
-
-          isFromLkam = true
         }
 
         // Hapus duplikat alias jika sempat terdaftar sebelum primary
@@ -303,17 +325,17 @@ export class AcademicApiService {
     }
 
     // 5. Pembentukan daftar mata kuliah pengguguran
-    // Sesuai ketentuan: jika mahasiswa memiliki riwayat di cetak-transkrip-sementara (UO_Z4X_MS_ZDE),
-    // HANYA mata kuliah yang ada di transkrip sementara tersebut yang disajikan untuk digugurkan!
+    // Sesuai ketentuan: jika data LKAM berhasil diakses (UO_Z4X_MS_ZDE),
+    // HANYA mata kuliah yang tercatat pernah diambil/ditempuh mahasiswa di LKAM tersebut yang disajikan!
     const finalMap = new Map<string, any>()
 
     if (isFromLkam) {
-      // HANYA ambil mata kuliah dari transkrip sementara mahasiswa yang sudah ditempuh
+      // HANYA ambil mata kuliah dari LKAM mahasiswa yang sudah ditempuh
       for (const [k, c] of lkamCourseMap.entries()) {
         finalMap.set(k, c)
       }
     } else {
-      // Fallback HANYA jika API UO_Z4X_MS_ZDE offline/gagal koneksi:
+      // Fallback HANYA jika API UO_Z4X_MS_ZDE offline/gagal koneksi sama sekali:
       // Ambil mata kuliah prodi, namun cegah duplikasi mata kuliah pilihan agama (maksimal 1 agama)
       let includedAgama = false
       const isProdiMatch = (c: any) => {
