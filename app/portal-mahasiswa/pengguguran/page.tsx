@@ -40,7 +40,7 @@ export default function StudentPengguguranPage() {
   const [pageSize, setPageSize] = useState(10)
 
   // Modal pengajuan
-  const [selectedCourse, setSelectedCourse] = useState<AcademicCourse | null>(null)
+  const [selectedCourses, setSelectedCourses] = useState<AcademicCourse[]>([])
   const [showApplyModal, setShowApplyModal] = useState(false)
   const [alasan, setAlasan] = useState('')
   const [lampiranNama, setLampiranNama] = useState('')
@@ -129,13 +129,69 @@ export default function StudentPengguguranPage() {
     return filteredCourses.slice(start, start + pageSize)
   }, [filteredCourses, currentPage, pageSize])
 
-  // Open apply dialog
-  const handleOpenApply = (course: AcademicCourse) => {
+  const isPengajuanOpen = Boolean(activePeriode?.timeline?.isPengajuanOpen)
+
+  // Eligible courses for application (non-inti and not already applied)
+  const eligibleCourses = useMemo(() => {
+    return filteredCourses.filter((c) => c.kategori_mk !== 'INTI' && !c.alreadyApplied)
+  }, [filteredCourses])
+
+  const isAllEligibleSelected = useMemo(() => {
+    if (eligibleCourses.length === 0) return false
+    return eligibleCourses.every((c) => selectedCourses.some((sc) => sc.kode_mk === c.kode_mk))
+  }, [eligibleCourses, selectedCourses])
+
+  const toggleCourseSelection = (course: AcademicCourse) => {
+    if (course.kategori_mk === 'INTI' || (course as any).alreadyApplied || !isPengajuanOpen) return
+    setSelectedCourses((prev) => {
+      const exists = prev.some((c) => c.kode_mk === course.kode_mk)
+      if (exists) {
+        return prev.filter((c) => c.kode_mk !== course.kode_mk)
+      } else {
+        return [...prev, course]
+      }
+    })
+  }
+
+  const handleSelectAll = () => {
+    if (isAllEligibleSelected) {
+      const eligibleCodes = new Set(eligibleCourses.map((c) => c.kode_mk))
+      setSelectedCourses((prev) => prev.filter((c) => !eligibleCodes.has(c.kode_mk)))
+    } else {
+      setSelectedCourses((prev) => {
+        const existingMap = new Map(prev.map((c) => [c.kode_mk, c]))
+        for (const ec of eligibleCourses) {
+          existingMap.set(ec.kode_mk, ec)
+        }
+        return Array.from(existingMap.values())
+      })
+    }
+  }
+
+  const totalSelectedSks = useMemo(() => {
+    return selectedCourses.reduce((sum, c) => sum + (c.sks || 0), 0)
+  }, [selectedCourses])
+
+  // Open apply dialog for single course
+  const handleOpenApplySingle = (course: AcademicCourse) => {
     if (course.kategori_mk === 'INTI') {
       alert('Mata kuliah ini termasuk kategori Mata Kuliah Inti dan tidak dapat diajukan untuk pengguguran.')
       return
     }
-    setSelectedCourse(course)
+    setSelectedCourses([course])
+    setAlasan('')
+    setLampiranNama('')
+    setLampiranUrl('')
+    setSubmitError(null)
+    setShowApplyModal(true)
+  }
+
+  // Open apply dialog for currently selected batch
+  const handleOpenApplyBatch = () => {
+    if (selectedCourses.length === 0) {
+      alert('Pilih minimal 1 mata kuliah non-inti untuk diajukan.')
+      return
+    }
     setAlasan('')
     setLampiranNama('')
     setLampiranUrl('')
@@ -148,7 +204,10 @@ export default function StudentPengguguranPage() {
     e.preventDefault()
     setSubmitError(null)
 
-    if (!selectedCourse) return
+    if (selectedCourses.length === 0) {
+      setSubmitError('Pilih minimal satu mata kuliah untuk diajukan.')
+      return
+    }
 
     if (!alasan.trim() || alasan.trim().length < 10) {
       setSubmitError('Alasan pengguguran wajib diisi minimal 10 karakter.')
@@ -161,7 +220,11 @@ export default function StudentPengguguranPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          kodeMatkul: selectedCourse.kode_mk,
+          courses: selectedCourses.map((c) => ({
+            kode_mk: c.kode_mk,
+            nama_mk: c.nama_mk,
+            sks: c.sks,
+          })),
           alasan: alasan.trim(),
           lampiranNama: lampiranNama.trim() || undefined,
           lampiranUrl: lampiranUrl.trim() || undefined,
@@ -176,9 +239,14 @@ export default function StudentPengguguranPage() {
       }
 
       // Berhasil
+      const submittedCount = selectedCourses.length
       setShowApplyModal(false)
-      setSelectedCourse(null)
-      alert(`Pengajuan pengguguran untuk ${selectedCourse.kode_mk} berhasil dikirim ke Program Studi!`)
+      setSelectedCourses([])
+      alert(
+        submittedCount === 1
+          ? `Pengajuan pengguguran untuk ${selectedCourses[0]?.kode_mk || 'mata kuliah'} berhasil dikirim ke Program Studi!`
+          : `Pengajuan pengguguran untuk ${submittedCount} mata kuliah berhasil dikirim ke Program Studi!`
+      )
       router.push('/portal-mahasiswa/riwayat')
     } catch (err: any) {
       setSubmitError(err?.message || 'Terjadi kesalahan sistem saat mengirim pengajuan.')
@@ -186,8 +254,6 @@ export default function StudentPengguguranPage() {
       setSubmitting(false)
     }
   }
-
-  const isPengajuanOpen = Boolean(activePeriode?.timeline?.isPengajuanOpen)
 
   return (
     <div className="space-y-6">
@@ -277,36 +343,69 @@ export default function StudentPengguguranPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left min-w-[700px]">
+            <table className="w-full text-xs text-left min-w-[760px]">
               <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-3.5">Kode MK</th>
+                  <th className="px-3.5 py-3.5 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isAllEligibleSelected}
+                      onChange={handleSelectAll}
+                      disabled={!isPengajuanOpen || eligibleCourses.length === 0}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                      title="Pilih semua mata kuliah non-inti yang dapat diajukan"
+                    />
+                  </th>
+                  <th className="px-4 py-3.5 whitespace-nowrap">Kode MK</th>
                   <th className="px-4 py-3.5">Nama Mata Kuliah</th>
-                  <th className="px-4 py-3.5">SKS</th>
-                  <th className="px-4 py-3.5">Nilai & Masa</th>
-                  <th className="px-4 py-3.5">Kategori</th>
-                  <th className="px-4 py-3.5">Status Kelayakan</th>
-                  <th className="px-4 py-3.5 text-center">Tindakan</th>
+                  <th className="px-4 py-3.5 whitespace-nowrap">SKS</th>
+                  <th className="px-4 py-3.5 whitespace-nowrap">Nilai & Masa</th>
+                  <th className="px-4 py-3.5 whitespace-nowrap">Kategori</th>
+                  <th className="px-4 py-3.5 whitespace-nowrap">Status Kelayakan</th>
+                  <th className="px-4 py-3.5 text-center whitespace-nowrap">Tindakan</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedCourses.map((c) => {
                   const isInti = c.kategori_mk === 'INTI'
+                  const isSelected = selectedCourses.some((sc) => sc.kode_mk === c.kode_mk)
+                  const canSelect = !isInti && !c.alreadyApplied && isPengajuanOpen
 
                   return (
-                    <tr key={c.kode_mk} className="hover:bg-slate-50/80 transition">
-                      <td className="px-4 py-3.5 font-mono font-bold text-slate-800">{c.kode_mk}</td>
+                    <tr
+                      key={c.kode_mk}
+                      className={`transition ${isSelected ? 'bg-blue-50/60' : 'hover:bg-slate-50/80'}`}
+                    >
+                      <td className="px-3.5 py-3.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={!canSelect}
+                          onChange={() => toggleCourseSelection(c)}
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                          title={
+                            c.alreadyApplied
+                              ? 'Mata kuliah ini sudah diajukan'
+                              : isInti
+                              ? 'Mata kuliah inti tidak dapat digugurkan'
+                              : !isPengajuanOpen
+                              ? 'Periode pengajuan sedang ditutup'
+                              : 'Pilih mata kuliah ini'
+                          }
+                        />
+                      </td>
+                      <td className="px-4 py-3.5 font-mono font-bold text-slate-800 whitespace-nowrap">{c.kode_mk}</td>
                       <td className="px-4 py-3.5">
                         <div className="font-bold text-slate-800">{c.nama_mk}</div>
                         <div className="text-[11px] text-slate-400">
                           {c.nama_prodi || student?.prodi} • Kurikulum {c.kurikulum}
                         </div>
                       </td>
-                      <td className="px-4 py-3.5 font-semibold text-slate-600">{c.sks} SKS</td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap">{c.sks} SKS</td>
+                      <td className="px-4 py-3.5 whitespace-nowrap">
                         <div className="font-bold text-slate-800">
                           {c.grade && c.grade !== '-' && c.grade !== 'BL' ? (
-                            <span className="inline-flex items-center gap-1 font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-[11px]">
+                            <span className="inline-flex items-center gap-1 font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-md text-[11px] font-semibold">
                               Nilai: {c.grade}
                             </span>
                           ) : c.grade === 'BL' ? (
@@ -327,18 +426,18 @@ export default function StudentPengguguranPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3.5 whitespace-nowrap">
                         {isInti ? (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                          <span className="whitespace-nowrap inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                             Inti
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="whitespace-nowrap inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Non-Inti
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3.5 whitespace-nowrap">
                         {c.alreadyApplied ? (
                           <div className="text-[11px] font-bold text-blue-700 flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5" />
@@ -356,7 +455,7 @@ export default function StudentPengguguranPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3.5 text-center">
+                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
                         {c.alreadyApplied ? (
                           <Link
                             href="/portal-mahasiswa/riwayat"
@@ -374,7 +473,7 @@ export default function StudentPengguguranPage() {
                           </button>
                         ) : (
                           <button
-                            onClick={() => handleOpenApply(c)}
+                            onClick={() => handleOpenApplySingle(c)}
                             disabled={!isPengajuanOpen}
                             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all ${
                               isPengajuanOpen
@@ -410,8 +509,44 @@ export default function StudentPengguguranPage() {
         )}
       </div>
 
+      {/* Floating Action Bar untuk Pemilihan Multi Mata Kuliah */}
+      {selectedCourses.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-4 max-w-xl w-[92%] sm:w-auto animate-in slide-in-from-bottom-5">
+          <div className="flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-xl bg-blue-600 text-white font-black text-xs flex items-center justify-center shadow">
+              {selectedCourses.length}
+            </span>
+            <div className="text-xs">
+              <div className="font-bold">{selectedCourses.length} Mata Kuliah Dipilih</div>
+              <div className="text-[11px] text-slate-400">Total {totalSelectedSks} SKS</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={() => setSelectedCourses([])}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenApplyBatch}
+              disabled={!isPengajuanOpen}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm ${
+                isPengajuanOpen
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white active:scale-95'
+                  : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              Ajukan Pengguguran ({selectedCourses.length} MK)
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* MODAL PENGAJUAN */}
-      {mounted && showApplyModal && selectedCourse && createPortal(
+      {mounted && showApplyModal && selectedCourses.length > 0 && createPortal(
         <div
           className="fixed inset-0 w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999999] p-4 overflow-y-auto"
           role="dialog"
@@ -430,7 +565,9 @@ export default function StudentPengguguranPage() {
                   <BookX className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-base">Formulir Pengajuan Pengguguran</h3>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Formulir Pengajuan Pengguguran {selectedCourses.length > 1 ? `(${selectedCourses.length} Mata Kuliah)` : ''}
+                  </h3>
                   <p className="text-xs text-slate-500">Lengkapi alasan pengajuan untuk verifikasi Program Studi</p>
                 </div>
               </div>
@@ -464,30 +601,48 @@ export default function StudentPengguguranPage() {
               </div>
 
               {/* Data Mata Kuliah yang Dipilih */}
-              <div className="p-3.5 rounded-2xl bg-blue-50/60 border border-blue-200 space-y-1.5">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-[10px] text-blue-700 uppercase tracking-wider">
-                    Mata Kuliah Yang Diajukan
+                    Mata Kuliah Yang Diajukan ({selectedCourses.length} MK • Total {totalSelectedSks} SKS)
                   </span>
                   <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-600 text-white">
                     Non-Inti (Dapat Diajukan)
                   </span>
                 </div>
-                <div className="font-bold text-slate-900 text-sm">
-                  {selectedCourse.kode_mk} - {selectedCourse.nama_mk}
-                </div>
-                <div className="text-slate-600">
-                  Bobot: <strong>{selectedCourse.sks} SKS</strong>
-                  {selectedCourse.grade && selectedCourse.grade !== '-' && (
-                    <> • Nilai: <strong className="text-slate-900 font-mono">{selectedCourse.grade}</strong></>
-                  )}
-                  {selectedCourse.masa && selectedCourse.masa !== '-' && (
-                    <> • Masa: <strong className="text-slate-900 font-mono">{selectedCourse.masa}</strong></>
-                  )}
-                  {selectedCourse.kelompok && (
-                    <> • Kelompok: <strong className="text-slate-900">{selectedCourse.kelompok}</strong></>
-                  )}
-                  {" "}• Kurikulum: {selectedCourse.kurikulum}
+
+                <div className="max-h-52 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-100">
+                  {selectedCourses.map((c) => (
+                    <div
+                      key={c.kode_mk}
+                      className="pt-2 first:pt-0 p-3 rounded-2xl bg-blue-50/60 border border-blue-200 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 text-xs">
+                          {c.kode_mk} - {c.nama_mk}
+                        </div>
+                        <div className="text-[11px] text-slate-600 mt-0.5">
+                          Bobot: <strong>{c.sks} SKS</strong>
+                          {c.grade && c.grade !== '-' && (
+                            <> • Nilai: <strong className="text-slate-900 font-mono">{c.grade}</strong></>
+                          )}
+                          {c.masa && c.masa !== '-' && (
+                            <> • Masa: <strong className="text-slate-900 font-mono">{c.masa}</strong></>
+                          )}
+                        </div>
+                      </div>
+                      {selectedCourses.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCourses((prev) => prev.filter((item) => item.kode_mk !== c.kode_mk))}
+                          className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition shrink-0"
+                          title="Hapus mata kuliah ini dari pengajuan"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -497,7 +652,7 @@ export default function StudentPengguguranPage() {
                   Alasan Pengajuan Pengguguran *
                 </label>
                 <textarea
-                  rows={4}
+                  rows={3}
                   required
                   placeholder="Tuliskan alasan akademik atau administrasi secara jelas mengapa mata kuliah ini diajukan untuk digugurkan..."
                   value={alasan}
@@ -538,7 +693,9 @@ export default function StudentPengguguranPage() {
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition"
                 >
                   {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Kirim Pengajuan ke Prodi</span>
+                  <span>
+                    Kirim Pengajuan {selectedCourses.length > 1 ? `(${selectedCourses.length} MK) ` : ''}ke Prodi
+                  </span>
                 </button>
               </div>
             </form>
